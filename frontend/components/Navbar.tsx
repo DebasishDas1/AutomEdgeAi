@@ -11,12 +11,12 @@ export function Navbar() {
                 <span className="font-outfit font-[800] text-xl tracking-tighter">AUTOMEDGE</span>
             </div>
 
-            <div className="hidden lg:flex items-center gap-8 text-[10px] font-sans font-black tracking-[0.25em]">
-                <Link href="#problem" className="hover:text-accent transition-colors">THE PROBLEM</Link>
-                <Link href="#solution" className="hover:text-accent transition-colors">THE SOLUTION</Link>
-                <Link href="#impact" className="hover:text-accent transition-colors">IMPACT</Link>
-                <Link href="#faq" className="hover:text-accent transition-colors">FAQ</Link>
-                <Link href="#contact" className="hover:text-accent transition-colors">CONTACT</Link>
+            <div className="hidden lg:flex items-center gap-8 font-sans font-black tracking-[0.25em]">
+                <Link href="#problem" className="hover:text-accent transition-colors py-4">THE PROBLEM</Link>
+                <Link href="#solution" className="hover:text-accent transition-colors py-4">THE SOLUTION</Link>
+                <Link href="#impact" className="hover:text-accent transition-colors py-4">IMPACT</Link>
+                <Link href="#faq" className="hover:text-accent transition-colors py-4">FAQ</Link>
+                <Link href="#contact" className="hover:text-accent transition-colors py-4">CONTACT</Link>
             </div>
 
             <div className="flex items-center gap-3">
