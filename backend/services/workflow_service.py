@@ -7,31 +7,37 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from core.database import ChatSession, AsyncSessionLocal
-from models.workflow import HVACChatState
+from models.workflow import BaseChatState
 
 # Graphs
 from workflows.hvac.graph import hvac_chat_graph, post_hvac_chat_graph
-from workflows.roofing.graph import roofing_graph
-from workflows.plumbing.graph import plumbing_graph
-from workflows.pest_control.graph import pest_graph
+from workflows.roofing.graph import roofing_chat_graph, roofing_post_chat_graph
+from workflows.plumbing.graph import plumbing_chat_graph, plumbing_post_chat_graph
+from workflows.pest_control.graph import pest_chat_graph, pest_post_chat_graph
 
 logger = logging.getLogger(__name__)
 
 
 # Graph registry
-GRAPHS = {
+CHAT_GRAPHS = {
     "hvac": hvac_chat_graph,
-    "roofing": roofing_graph,
-    "plumbing": plumbing_graph,
-    "pest_control": pest_graph,
+    "roofing": roofing_chat_graph,
+    "plumbing": plumbing_chat_graph,
+    "pest_control": pest_chat_graph,
 }
 
+POST_CHAT_GRAPHS = {
+    "hvac": post_hvac_chat_graph,
+    "roofing": roofing_post_chat_graph,
+    "plumbing": plumbing_post_chat_graph,
+    "pest_control": pest_post_chat_graph,
+}
 
 class WorkflowService:
 
     @staticmethod
     async def stream_workflow(vertical: str, state: dict) -> AsyncGenerator[str, None]:
-        graph = GRAPHS.get(vertical)
+        graph = CHAT_GRAPHS.get(vertical)
 
         if not graph:
             yield WorkflowService._sse("error", f"Unknown vertical: {vertical}")
@@ -89,8 +95,12 @@ async def run_chat_turn(
         "ts": datetime.utcnow().isoformat()
     })
 
+    chat_graph = CHAT_GRAPHS.get(chat_session.vertical)
+    if not chat_graph:
+        raise ValueError(f"No chat graph for vertical {chat_session.vertical}")
+
     # Run graph asynchronously
-    new_state = await hvac_chat_graph.ainvoke(state)
+    new_state = await chat_graph.ainvoke(state)
 
     # Extract assistant reply
     ai_reply = ""
@@ -119,10 +129,24 @@ async def run_chat_turn(
 # POST CHAT WORKFLOW
 # ---------------------------------------------
 
-async def run_post_chat(session_id: str, state: HVACChatState) -> None:
+async def run_post_chat(session_id: str, state: BaseChatState, vertical: str = None) -> None:
 
     try:
-        final_state = await post_hvac_chat_graph.ainvoke(state)
+        if vertical is None:
+            # try to fetch if not provided
+            pass # but we should get it from DB, actually background_tasks takes (session_id, state) from router which already has chat_session
+
+        async with AsyncSessionLocal() as db:
+            stmt = select(ChatSession).where(ChatSession.session_id == session_id)
+            result = await db.execute(stmt)
+            chat_session = result.scalar_one()
+
+            post_chat_graph = POST_CHAT_GRAPHS.get(chat_session.vertical)
+            if not post_chat_graph:
+                logger.error(f"No post_chat graph for vertical {chat_session.vertical}")
+                return
+
+            final_state = await post_chat_graph.ainvoke(state)
 
         async with AsyncSessionLocal() as db:
 

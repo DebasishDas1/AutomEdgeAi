@@ -7,7 +7,16 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 from llm import llm
 from core.config import settings
-from models.workflow import HVACChatState as PestChatState  # same shape, rename later
+from models.workflow import BaseChatState as HVACChatState
+from workflows.base import (
+    _field_missing,
+    _parse_json_from_llm,
+    _merge_extracted,
+    _build_chat_messages,
+    _last_user_message,
+    _full_transcript,
+    get_appointment_slots
+) as PestChatState  # same shape, rename later
 from workflows.pest_control.prompts import (
     PEST_EXPERT_SYSTEM,
     FIELD_COLLECTION_GUIDE,
@@ -23,73 +32,6 @@ from tools.sheets import sheets_tool
 
 logger = logging.getLogger(__name__)
 
-
-# ── Helpers (same pattern as hvac/nodes.py) ───────────────────────────────────
-
-_MISSING = object()
-
-def _field_missing(state: dict, key: str) -> bool:
-    val = state.get(key, _MISSING)
-    return val is _MISSING or val is None
-
-
-def _parse_json_from_llm(content: str) -> dict | None:
-    start = content.find("{")
-    end   = content.rfind("}") + 1
-    if start == -1 or end == 0:
-        return None
-    try:
-        return json.loads(content[start:end])
-    except json.JSONDecodeError as e:
-        logger.warning(f"JSON parse failed: {e} | raw: {content[start:end][:200]}")
-        return None
-
-
-def _merge_extracted(state: dict, extracted: dict) -> dict:
-    """Merge non-null extracted fields. Never overwrite existing values."""
-    for k, v in extracted.items():
-        if v is None:
-            continue
-        if _field_missing(state, k):
-            state[k] = v
-            logger.debug(f"Extracted: {k} = {v}")
-    return state
-
-
-def _build_chat_messages(state: dict) -> list:
-    result = []
-    for m in state.get("messages", []):
-        role    = m.get("role")
-        content = m.get("content", "")
-        if role == "user":
-            result.append(HumanMessage(content=content))
-        elif role == "assistant":
-            result.append(AIMessage(content=content))
-    return result
-
-
-def _last_user_message(state: dict) -> str | None:
-    messages = state.get("messages", [])
-    return next(
-        (m["content"] for m in reversed(messages) if m.get("role") == "user"),
-        None,
-    )
-
-
-def _full_transcript(state: dict) -> str:
-    return "\n".join(
-        f"{m['role'].upper()}: {m['content']}"
-        for m in state.get("messages", [])
-    )
-
-
-def get_appointment_slots() -> list[str]:
-    today = datetime.now()
-    return [
-        (today + timedelta(days=1)).strftime("%A, %b %d at 10:00 AM"),
-        (today + timedelta(days=2)).strftime("%A, %b %d at 2:00 PM"),
-        (today + timedelta(days=3)).strftime("%A, %b %d at 9:00 AM"),
-    ]
 
 
 # ══════════════════════════════════════════════════════════════════════════════

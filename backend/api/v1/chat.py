@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from core.database import get_db, ChatSession
-from models.workflow import HVACChatState
+from models.workflow import BaseChatState
 from pydantic import BaseModel
 from services.workflow_service import run_chat_turn, run_post_chat
 
@@ -22,25 +22,32 @@ class ChatMessageRequest(BaseModel):
 
 @router.post("/start")
 async def start_chat(req: ChatStartRequest, db: AsyncSession = Depends(get_db)):
-    if req.vertical != "hvac":
-        raise HTTPException(status_code=400, detail="Only hvac vertical supported for now")
+    valid_verticals = ["hvac", "pest_control", "plumbing", "roofing"]
+    if req.vertical not in valid_verticals:
+        raise HTTPException(status_code=400, detail=f"Invalid vertical. Must be one of: {valid_verticals}")
         
     session_id = str(uuid.uuid4())
-    initial_state: HVACChatState = {
+    initial_state: BaseChatState = {
         "session_id": session_id,
         "user_id": None,
         "started_at": datetime.now().isoformat(),
         "messages": [],
         "turn_count": 0,
         "is_complete": False,
-        "name": None, "email": None, "phone": None, "location": None, "issue": None,
-        "system_age": None, "urgency": None, "is_homeowner": None, "budget_signal": None, "timeline": None,
-        "appt_offered": False, "appt_slots": [], "appt_confirmed": None, "appt_booked": False,
-        "summary": None, "score": None, "score_reason": None, "email_sent": False,
-        "sheet_row": None, "sheet_tab": None
+        "appt_offered": False,
+        "appt_slots": [],
+        "appt_booked": False,
+        "email_sent": False
     }
     
-    opening_message = "Hi! I'm Alex, an HVAC technician. What's going on with your system today?"
+    opening_messages = {
+        "hvac": "Hi! I'm Alex, an HVAC technician. What's going on with your system today?",
+        "pest_control": "Hi! I'm Jordan, a pest control specialist. What kind of bug or pest issue are you dealing with today?",
+        "plumbing": "Hi! I'm Sam, a plumber. What's going on with your plumbing today?",
+        "roofing": "Hi! I'm Casey, a roofing specialist. How can I help with your roof today?"
+    }
+    opening_message = opening_messages.get(req.vertical, "Hi! How can I help you today?")
+    
     initial_state["messages"].append({
         "role": "assistant",
         "content": opening_message,

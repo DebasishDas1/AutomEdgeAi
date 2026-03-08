@@ -26,7 +26,7 @@ class WorkflowStreamEvent(BaseModel):
 
 from typing import TypedDict, List, Optional
 
-class HVACChatState(TypedDict):
+class BaseChatState(TypedDict):
     # Session
     session_id: str
     user_id: Optional[str]
@@ -43,11 +43,39 @@ class HVACChatState(TypedDict):
     phone: Optional[str]
     location: Optional[str]
     issue: Optional[str]
-    system_age: Optional[str]
     urgency: Optional[str]
     is_homeowner: Optional[bool]
+    
+    # HVAC
+    system_age: Optional[str]
     budget_signal: Optional[str]
     timeline: Optional[str]
+    
+    # Pest Control
+    pest_type: Optional[str]
+    infestation_area: Optional[str]
+    duration: Optional[str]
+    has_damage: Optional[bool]
+    tried_treatment: Optional[bool]
+    wants_annual: Optional[bool]
+    property_type: Optional[str]
+
+    # Plumbing
+    issue_type: Optional[str]
+    problem_area: Optional[str]
+    is_getting_worse: Optional[bool]
+    has_water_damage: Optional[bool]
+    main_shutoff_off: Optional[bool]
+
+    # Roofing
+    damage_type: Optional[str]
+    damage_detail: Optional[str]
+    storm_date: Optional[str]
+    roof_age: Optional[str]
+    has_insurance: Optional[bool]
+    insurance_contacted: Optional[bool]
+    adjuster_involved: Optional[bool]
+    has_interior_leak: Optional[bool]
 
     # Appointment
     appt_offered: bool
@@ -57,6 +85,7 @@ class HVACChatState(TypedDict):
 
     # Post-chat results
     summary: Optional[str]
+    internal_summary: Optional[str]
     score: Optional[str]
     score_reason: Optional[str]
     email_sent: bool

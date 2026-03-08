@@ -72,3 +72,80 @@ def request_review(state: LeadState) -> LeadState:
     state['review_sent'] = success
     add_event(state, "Review Request Sent", "done" if success else "error")
     return state
+
+# -----------------------------------------------------------------------------
+# Common Graph Node Helpers (Shared by Chat Workflows)
+# -----------------------------------------------------------------------------
+
+import json
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from datetime import timedelta
+
+_MISSING = object()
+
+def _field_missing(state: dict, key: str) -> bool:
+    """Returns True only if field has never been set. False is a valid value."""
+    val = state.get(key, _MISSING)
+    return val is _MISSING or val is None
+
+def _parse_json_from_llm(content: str) -> dict | None:
+    """Safely extract the first JSON object from an LLM response string."""
+    start = content.find("{")
+    end   = content.rfind("}") + 1
+    if start == -1 or end == 0:
+        return None
+    try:
+        return json.loads(content[start:end])
+    except json.JSONDecodeError as e:
+        logger.warning(f"JSON parse failed: {e} | raw: {content[start:end][:200]}")
+        return None
+
+def _merge_extracted(state: dict, extracted: dict) -> dict:
+    """
+    Merge extracted fields into state.
+    Rules:
+      - Never overwrite an existing non-None value (first capture wins)
+      - Exception: is_homeowner — bool False is a valid value, use _field_missing
+    """
+    for k, v in extracted.items():
+        if v is None:
+            continue
+        if _field_missing(state, k):
+            state[k] = v
+            logger.debug(f"Extracted field: {k} = {v}")
+    return state
+
+def _build_chat_messages(state: dict) -> list:
+    """Convert state messages list to LangChain message objects."""
+    result = []
+    for m in state.get("messages", []):
+        role    = m.get("role")
+        content = m.get("content", "")
+        if role == "user":
+            result.append(HumanMessage(content=content))
+        elif role == "assistant":
+            result.append(AIMessage(content=content))
+    return result
+
+def _last_user_message(state: dict) -> str | None:
+    """Returns the content of the most recent user message."""
+    messages = state.get("messages", [])
+    return next(
+        (m["content"] for m in reversed(messages) if m.get("role") == "user"),
+        None
+    )
+
+def _full_transcript(state: dict) -> str:
+    """Returns full conversation as plain text for extraction/summary."""
+    return "\n".join(
+        f"{m['role'].upper()}: {m['content']}"
+        for m in state.get("messages", [])
+    )
+
+def get_appointment_slots() -> list[str]:
+    today = datetime.now()
+    return [
+        (today + timedelta(days=1)).strftime("%A, %b %d at 10:00 AM"),
+        (today + timedelta(days=2)).strftime("%A, %b %d at 2:00 PM"),
+        (today + timedelta(days=3)).strftime("%A, %b %d at 9:00 AM"),
+    ]
