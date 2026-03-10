@@ -1,7 +1,8 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 from uuid import UUID
+from typing import Literal
 
 class WorkflowEventBase(BaseModel):
     step: int
@@ -91,3 +92,35 @@ class BaseChatState(TypedDict):
     email_sent: bool
     sheet_row: Optional[int]
     sheet_tab: Optional[str]
+
+
+class HVACChatState(TypedDict):
+    name: Optional[str]
+    phone: Optional[str]
+    issue: Optional[str]
+    city: Optional[str]
+    step: int
+
+WorkflowStatus = Literal["pending", "running", "complete", "failed"]
+
+
+class WorkflowStartRequest(BaseModel):
+    lead_id:  int
+    vertical: str
+    # Optional override fields — if not provided, pulled from lead record
+    force:    bool = Field(False, description="Re-run even if workflow already ran")
+
+
+class WorkflowStartResponse(BaseModel):
+    workflow_id: str
+    lead_id:     int
+    vertical:    str
+    status:      WorkflowStatus = "pending"
+
+
+class WorkflowEvent(BaseModel):
+    workflow_id: str
+    event:       str            # node name or label e.g. "score_lead"
+    status:      str            # "running" | "done" | "error"
+    detail:      str | None = None
+    ts:          datetime = Field(default_factory=datetime.now)

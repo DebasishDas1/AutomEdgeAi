@@ -1,18 +1,39 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
-from api.deps import get_db
-from models.booking import BookingCreate, Booking
-from core.database import Booking as BookingDB
+# api/v1/bookings.py
+# Demo booking endpoint — marketing site "Book a Demo" form.
+# NOT the same as service appointments (those are booked inside chat sessions).
+#
+# POST /bookings/  — save request + notify team via email
+import logging
 
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from api.deps import get_db
+from models.booking import BookingCreate, BookingResponse
+from services import booking_service
+
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
-@router.post("/", response_model=Booking)
+
+@router.post(
+    "/",
+    response_model=BookingResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Book a demo",
+    description=(
+        "Saves a demo request from the marketing site and notifies the team. "
+        "Used by the Book a Demo form on automedge.com."
+    ),
+)
 async def create_booking(
-    booking_in: BookingCreate,
-    db: AsyncSession = Depends(get_db)
-):
-    db_booking = BookingDB(**booking_in.model_dump())
-    db.add(db_booking)
-    await db.commit()
-    await db.refresh(db_booking)
-    return db_booking
+    body: BookingCreate,
+    db   = Depends(get_db),
+) -> BookingResponse:
+    try:
+        return await booking_service.create_booking(db, body)
+    except Exception as e:
+        logger.error(f"create_booking failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save booking request.",
+        )

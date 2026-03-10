@@ -16,7 +16,7 @@ from workflows.base import (
     _last_user_message,
     _full_transcript,
     get_appointment_slots
-) as PestChatState  # same shape, rename later
+)
 from workflows.pest_control.prompts import (
     PEST_EXPERT_SYSTEM,
     FIELD_COLLECTION_GUIDE,

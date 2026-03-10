@@ -1,60 +1,123 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
-from models.lead import LeadCreate, LeadUpdate
-from core.database import Lead, WorkflowEvent
-from models.workflow import WorkflowEventCreate
-from uuid import UUID
-import datetime
+# services/lead_service.py
+# All DB operations for leads.
+# Uses raw asyncpg — no ORM, consistent with the rest of the codebase.
+#
+# leads table DDL is in create_leads.sql
+import logging
+from datetime import datetime
 
-class LeadService:
-    @staticmethod
-    async def create_lead(db: AsyncSession, lead_in: LeadCreate, user_id: str) -> Lead:
-        db_lead = Lead(
-            **lead_in.model_dump(),
-            user_id=user_id,
-            stage="new",
-            urgency="normal"
-        )
-        db.add(db_lead)
-        await db.commit()
-        await db.refresh(db_lead)
-        return db_lead
+import asyncpg
 
-    @staticmethod
-    async def get_lead(db: AsyncSession, lead_id: UUID) -> Lead | None:
-        result = await db.execute(select(Lead).where(Lead.id == lead_id))
-        return result.scalars().first()
+from models.lead import LeadCreate, LeadUpdate, LeadResponse, LeadListResponse
 
-    @staticmethod
-    async def get_user_leads(db: AsyncSession, user_id: str) -> list[Lead]:
-        result = await db.execute(select(Lead).where(Lead.user_id == user_id).order_by(Lead.created_at.desc()))
-        return result.scalars().all()
+logger = logging.getLogger(__name__)
 
-    @staticmethod
-    async def update_lead(db: AsyncSession, lead_id: UUID, lead_in: LeadUpdate) -> Lead | None:
-        db_lead = await LeadService.get_lead(db, lead_id)
-        if not db_lead:
-            return None
-        
-        update_data = lead_in.model_dump(exclude_unset=True)
-        for key, value in update_data.items():
-            setattr(db_lead, key, value)
-        
-        await db.commit()
-        await db.refresh(db_lead)
-        return db_lead
 
-    @staticmethod
-    async def add_workflow_event(db: AsyncSession, event_in: WorkflowEventCreate) -> WorkflowEvent:
-        db_event = WorkflowEvent(
-            **event_in.model_dump()
-        )
-        db.add(db_event)
-        await db.commit()
-        await db.refresh(db_event)
-        return db_event
+async def create_lead(db: asyncpg.Connection, data: LeadCreate) -> LeadResponse:
+    row = await db.fetchrow(
+        """
+        INSERT INTO leads
+            (vertical, name, email, phone, location, issue,
+             pest_type, damage_type, source, session_id, notes,
+             stage, appt_booked)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'new',FALSE)
+        RETURNING *
+        """,
+        data.vertical, data.name, data.email, data.phone,
+        data.location, data.issue, data.pest_type, data.damage_type,
+        data.source, data.session_id, data.notes,
+    )
+    return _row_to_response(row)
 
-    @staticmethod
-    async def get_workflow_events(db: AsyncSession, lead_id: UUID) -> list[WorkflowEvent]:
-        result = await db.execute(select(WorkflowEvent).where(WorkflowEvent.lead_id == lead_id).order_by(WorkflowEvent.step.asc()))
-        return result.scalars().all()
+
+async def get_leads(
+    db:       asyncpg.Connection,
+    vertical: str | None  = None,
+    score:    str | None  = None,
+    stage:    str | None  = None,
+    limit:    int         = 50,
+    offset:   int         = 0,
+) -> LeadListResponse:
+    filters = []
+    params  = []
+    i = 1
+
+    if vertical:
+        filters.append(f"vertical = ${i}"); params.append(vertical); i += 1
+    if score:
+        filters.append(f"score = ${i}");    params.append(score);    i += 1
+    if stage:
+        filters.append(f"stage = ${i}");    params.append(stage);    i += 1
+
+    where = ("WHERE " + " AND ".join(filters)) if filters else ""
+
+    rows = await db.fetch(
+        f"""
+        SELECT * FROM leads
+        {where}
+        ORDER BY created_at DESC
+        LIMIT ${i} OFFSET ${i+1}
+        """,
+        *params, limit, offset,
+    )
+    total = await db.fetchval(f"SELECT COUNT(*) FROM leads {where}", *params)
+
+    return LeadListResponse(
+        total = total,
+        leads = [_row_to_response(r) for r in rows],
+    )
+
+
+async def update_lead(
+    db:      asyncpg.Connection,
+    lead_id: int,
+    data:    LeadUpdate,
+) -> LeadResponse | None:
+    # Build SET clause only for fields that were actually provided
+    updates = data.model_dump(exclude_none=True)
+    if not updates:
+        row = await db.fetchrow("SELECT * FROM leads WHERE id = $1", lead_id)
+        return _row_to_response(row) if row else None
+
+    set_parts = []
+    params    = []
+    i = 1
+    for key, val in updates.items():
+        set_parts.append(f"{key} = ${i}")
+        params.append(val)
+        i += 1
+
+    params.append(lead_id)
+    row = await db.fetchrow(
+        f"""
+        UPDATE leads
+        SET {", ".join(set_parts)}, updated_at = NOW()
+        WHERE id = ${i}
+        RETURNING *
+        """,
+        *params,
+    )
+    return _row_to_response(row) if row else None
+
+
+def _row_to_response(row) -> LeadResponse:
+    return LeadResponse(
+        id             = row["id"],
+        vertical       = row["vertical"],
+        name           = row["name"],
+        email          = row["email"],
+        phone          = row["phone"],
+        location       = row["location"],
+        issue          = row["issue"],
+        pest_type      = row["pest_type"],
+        damage_type    = row["damage_type"],
+        source         = row["source"],
+        session_id     = row["session_id"],
+        score          = row["score"],
+        stage          = row["stage"],
+        appt_booked    = row["appt_booked"],
+        appt_confirmed = row["appt_confirmed"],
+        notes          = row["notes"],
+        created_at     = row["created_at"],
+        updated_at     = row["updated_at"],
+    )

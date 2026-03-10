@@ -1,21 +1,28 @@
 import os
 import datetime
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, Text, UUID
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB
 import uuid
 from dotenv import load_dotenv
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-engine = create_async_engine(DATABASE_URL, echo=True)
-AsyncSessionLocal = sessionmaker(
-    engine, class_=AsyncSession, expire_on_commit=False
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+    pool_pre_ping=True,
+    connect_args={"ssl": True}
 )
 
+AsyncSessionLocal = async_sessionmaker(
+    engine,
+    expire_on_commit=False
+)
 Base = declarative_base()
 
 class Lead(Base):

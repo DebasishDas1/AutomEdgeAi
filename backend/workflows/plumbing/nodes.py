@@ -23,7 +23,7 @@ from workflows.plumbing.prompts import (
 )
 from tools.email import email_tool
 from tools.sheets import sheets_tool
-from tools.sms import send_sms
+from tools.sms import sms_tool
 
 logger = logging.getLogger(__name__)
 
@@ -283,7 +283,7 @@ def node_emergency_sms(state: dict) -> dict:
             location=state.get("location", "your location"),
             business_phone=settings.BUSINESS_PHONE,
         )
-        result = send_sms(to=state["phone"], body=msg)
+        result = sms_tool.send_sms(to=state["phone"], body=msg)
         state["sms_sent"] = result.get("status") == "sent"
         logger.info(f"Emergency SMS sent={state['sms_sent']} to {state['phone']}")
 

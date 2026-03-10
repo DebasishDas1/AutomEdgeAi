@@ -26,7 +26,7 @@ from workflows.roofing.prompts import (
 )
 from tools.email import email_tool
 from tools.sheets import sheets_tool
-from tools.sms import send_sms
+from tools.sms import sms_tool
 
 logger = logging.getLogger(__name__)
 
@@ -262,7 +262,7 @@ def node_insurance_sms(state: dict) -> dict:
             appt_datetime=state.get("appt_confirmed", "your upcoming inspection"),
             business_phone=settings.BUSINESS_PHONE,
         )
-        result = send_sms(to=state["phone"], body=msg)
+        result = sms_tool.send_sms(to=state["phone"], body=msg)
         state["sms_sent"] = result.get("status") == "sent"
         logger.info(f"Insurance reminder SMS sent={state['sms_sent']} to {state['phone']}")
 
