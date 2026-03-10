@@ -12,9 +12,8 @@ from typing import Literal
 from fastapi import BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from api.deps import get_db
+from core.database import get_db
 from services import workflow_service
-
 logger = logging.getLogger(__name__)
 
 Vertical = Literal["hvac", "pest_control", "plumbing", "roofing"]

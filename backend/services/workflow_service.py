@@ -1,176 +1,180 @@
+# services/workflow_service.py
+# LangGraph chat session management — SQLAlchemy AsyncSession version.
+# ChatSession ORM model mirrors the uploaded database.py exactly.
 import json
 import logging
+import uuid
 from datetime import datetime
-from typing import AsyncGenerator
 
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
-from core.database import ChatSession, AsyncSessionLocal
-from models.workflow import BaseChatState
-
-# Graphs
-from workflows.hvac.graph import hvac_chat_graph, post_hvac_chat_graph
-from workflows.roofing.graph import roofing_chat_graph, roofing_post_chat_graph
-from workflows.plumbing.graph import plumbing_chat_graph, plumbing_post_chat_graph
+from core.database import ChatSession, get_db_context
+from workflows.hvac.graph         import hvac_chat_graph, hvac_post_chat_graph
 from workflows.pest_control.graph import pest_chat_graph, pest_post_chat_graph
+from workflows.plumbing.graph     import plumbing_chat_graph, plumbing_post_chat_graph
+from workflows.roofing.graph      import roofing_chat_graph, roofing_post_chat_graph
 
 logger = logging.getLogger(__name__)
 
-
-# Graph registry
-CHAT_GRAPHS = {
-    "hvac": hvac_chat_graph,
-    "roofing": roofing_chat_graph,
-    "plumbing": plumbing_chat_graph,
+_CHAT_GRAPHS = {
+    "hvac":         hvac_chat_graph,
     "pest_control": pest_chat_graph,
+    "plumbing":     plumbing_chat_graph,
+    "roofing":      roofing_chat_graph,
 }
-
-POST_CHAT_GRAPHS = {
-    "hvac": post_hvac_chat_graph,
-    "roofing": roofing_post_chat_graph,
-    "plumbing": plumbing_post_chat_graph,
+_POST_CHAT_GRAPHS = {
+    "hvac":         hvac_post_chat_graph,
     "pest_control": pest_post_chat_graph,
+    "plumbing":     plumbing_post_chat_graph,
+    "roofing":      roofing_post_chat_graph,
 }
-
-class WorkflowService:
-
-    @staticmethod
-    async def stream_workflow(vertical: str, state: dict) -> AsyncGenerator[str, None]:
-        graph = CHAT_GRAPHS.get(vertical)
-
-        if not graph:
-            yield WorkflowService._sse("error", f"Unknown vertical: {vertical}")
-            return
-
-        try:
-            async for event in graph.astream(state):
-
-                for updates in event.values():
-                    events = updates.get("events")
-
-                    if events:
-                        yield WorkflowService._sse("event", events[-1])
-
-            yield WorkflowService._sse("complete", "Workflow finished")
-
-        except Exception as e:
-            logger.exception("Workflow stream failed")
-            yield WorkflowService._sse("error", str(e))
-
-    @staticmethod
-    def _sse(event_type: str, data):
-        return f"data: {json.dumps({'type': event_type, 'data': data})}\n\n"
+_COLLECTIBLE_FIELDS = [
+    "name", "email", "phone", "city", "issue",
+    "pest_type", "damage_type", "issue_type",
+    "urgency", "is_homeowner", "property_type",
+    "appt_booked", "appt_confirmed",
+]
 
 
-workflow_service = WorkflowService()
+# ── DB helpers ────────────────────────────────────────────────────────────────
+
+async def _load_session(db: AsyncSession, session_id: str) -> ChatSession | None:
+    result = await db.execute(
+        select(ChatSession).where(ChatSession.session_id == session_id)
+    )
+    return result.scalar_one_or_none()
 
 
-# ---------------------------------------------
-# CHAT WORKFLOW
-# ---------------------------------------------
-
-async def run_chat_turn(
-    session_id: str,
-    user_message: str,
-    db: AsyncSession
-) -> dict:
-
-    stmt = select(ChatSession).where(ChatSession.session_id == session_id)
-    result = await db.execute(stmt)
-
-    chat_session = result.scalar_one_or_none()
-
-    if not chat_session:
-        raise ValueError("Session not found")
-
-    state = chat_session.state or {}
-
-    # ensure messages list
-    state.setdefault("messages", [])
-
-    state["messages"].append({
-        "role": "user",
-        "content": user_message,
-        "ts": datetime.utcnow().isoformat()
-    })
-
-    chat_graph = CHAT_GRAPHS.get(chat_session.vertical)
-    if not chat_graph:
-        raise ValueError(f"No chat graph for vertical {chat_session.vertical}")
-
-    # Run graph asynchronously
-    new_state = await chat_graph.ainvoke(state)
-
-    # Extract assistant reply
-    ai_reply = ""
-
-    messages = new_state.get("messages", [])
-    if messages and messages[-1].get("role") == "assistant":
-        ai_reply = messages[-1].get("content", "")
-
-    chat_session.state = new_state
-
+async def _save_session(db: AsyncSession, row: ChatSession, state: dict) -> None:
+    # Strip internal routing key — never persisted
+    clean_state = {k: v for k, v in state.items() if k != "_vertical"}
+    row.state       = clean_state
+    row.score       = state.get("score")
+    row.sheet_row   = state.get("sheet_row")
+    row.sheet_tab   = state.get("sheet_tab")
+    row.email_sent  = bool(state.get("email_sent"))
+    row.appt_booked = bool(state.get("appt_booked"))
+    row.is_complete = bool(state.get("is_complete"))
+    row.updated_at  = datetime.utcnow()
     await db.commit()
+    await db.refresh(row)
 
+
+# ── Public API ────────────────────────────────────────────────────────────────
+
+async def start_session(
+    db:       AsyncSession,
+    vertical: str,
+    source:   str | None = None,
+    metadata: dict | None = None,
+) -> dict:
+    session_id = str(uuid.uuid4())
+    initial_state: dict = {
+        "session_id":  session_id,
+        "vertical":    vertical,
+        "messages":    [],
+        "turn_count":  0,
+        "is_complete": False,
+        "appt_booked": False,
+        "source":      source,
+        **(metadata or {}),
+    }
+
+    # Persist before running graph — safe if graph throws
+    row = ChatSession(
+        session_id  = session_id,
+        vertical    = vertical,
+        state       = initial_state,
+        is_complete = False,
+        appt_booked = False,
+        email_sent  = False,
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+
+    # Turn 0 — AI sends opening greeting
+    result = _CHAT_GRAPHS[vertical].invoke(initial_state)
+    await _save_session(db, row, result)
+
+    messages = result.get("messages", [])
+    last_ai  = next(
+        (m["content"] for m in reversed(messages) if m.get("role") == "assistant"), ""
+    )
+    logger.info(f"Session started: {session_id} vertical={vertical}")
     return {
-        "message": ai_reply,
-        "turn": new_state.get("turn_count", 0),
-        "is_complete": new_state.get("is_complete", False),
-        "appt_booked": new_state.get("appt_booked", False),
-        "fields_collected": {
-            k: new_state.get(k)
-            for k in ["name", "email", "phone", "issue", "location"]
-        }
+        "session_id": session_id,
+        "vertical":   vertical,
+        "message":    last_ai,
+        "turn":       result.get("turn_count", 0),
     }
 
 
-# ---------------------------------------------
-# POST CHAT WORKFLOW
-# ---------------------------------------------
+async def send_message(
+    db:         AsyncSession,
+    session_id: str,
+    user_msg:   str,
+) -> dict:
+    row = await _load_session(db, session_id)
+    if row is None:
+        raise ValueError(f"Session not found: {session_id}")
+    if row.is_complete:
+        raise ValueError(f"Session already complete: {session_id}")
 
-async def run_post_chat(session_id: str, state: BaseChatState, vertical: str = None) -> None:
+    vertical = row.vertical
+    state    = dict(row.state)   # JSONB → dict
 
+    # Append user message
+    state.setdefault("messages", []).append({
+        "role":    "user",
+        "content": user_msg,
+        "ts":      datetime.utcnow().isoformat(),
+    })
+
+    result = _CHAT_GRAPHS[vertical].invoke(state)
+    result["_vertical"] = vertical
+    await _save_session(db, row, result)
+
+    messages = result.get("messages", [])
+    last_ai  = next(
+        (m["content"] for m in reversed(messages) if m.get("role") == "assistant"), ""
+    )
+    fields_collected = {
+        k: result[k] for k in _COLLECTIBLE_FIELDS if result.get(k) is not None
+    }
+    logger.info(
+        f"turn={result.get('turn_count')} session={session_id} "
+        f"complete={result.get('is_complete')}"
+    )
+    return {
+        "session_id":       session_id,
+        "message":          last_ai,
+        "turn":             result.get("turn_count", 0),
+        "is_complete":      bool(result.get("is_complete")),
+        "appt_booked":      bool(result.get("appt_booked")),
+        "fields_collected": fields_collected,
+        "_state":           result,
+        "_vertical":        vertical,
+    }
+
+
+async def run_post_chat(state: dict, vertical: str) -> None:
+    """Background task — runs once when chat ends. Uses its own DB session."""
+    session_id = state.get("session_id", "unknown")
+    logger.info(f"post-chat starting: session={session_id} vertical={vertical}")
     try:
-        if vertical is None:
-            # try to fetch if not provided
-            pass # but we should get it from DB, actually background_tasks takes (session_id, state) from router which already has chat_session
-
-        async with AsyncSessionLocal() as db:
-            stmt = select(ChatSession).where(ChatSession.session_id == session_id)
-            result = await db.execute(stmt)
-            chat_session = result.scalar_one()
-
-            post_chat_graph = POST_CHAT_GRAPHS.get(chat_session.vertical)
-            if not post_chat_graph:
-                logger.error(f"No post_chat graph for vertical {chat_session.vertical}")
-                return
-
-            final_state = await post_chat_graph.ainvoke(state)
-
-        async with AsyncSessionLocal() as db:
-
-            stmt = select(ChatSession).where(ChatSession.session_id == session_id)
-            result = await db.execute(stmt)
-
-            chat_session = result.scalar_one()
-
-            chat_session.score = final_state.get("score")
-            chat_session.sheet_row = final_state.get("sheet_row")
-            chat_session.sheet_tab = final_state.get("sheet_tab")
-            chat_session.email_sent = final_state.get("email_sent", False)
-            chat_session.appt_booked = final_state.get("appt_booked", False)
-            chat_session.is_complete = True
-            chat_session.state = final_state
-
-            await db.commit()
-
-            logger.info(
-                f"Session {session_id} complete | "
-                f"score={chat_session.score} | "
-                f"sheet={chat_session.sheet_tab}:{chat_session.sheet_row} | "
-                f"email={chat_session.email_sent}"
-            )
-
+        result = _POST_CHAT_GRAPHS[vertical].invoke(state)
+        logger.info(
+            f"post-chat done: session={session_id} "
+            f"score={result.get('score')} email={result.get('email_sent')} "
+            f"sheet_row={result.get('sheet_row')}"
+        )
+        # Persist final post-chat state
+        async with get_db_context() as db:
+            row = await _load_session(db, session_id)
+            if row:
+                await _save_session(db, row, result)
     except Exception as e:
-        logger.exception(f"run_post_chat failed for {session_id}")
+        logger.error(f"post-chat failed: session={session_id} error={e}")
+        # Never raise — background task, caller already responded

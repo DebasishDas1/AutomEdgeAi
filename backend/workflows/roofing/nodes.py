@@ -99,7 +99,7 @@ def node_chat_reply(state: dict) -> dict:
         messages = [SystemMessage(content=sys_msg + "\n\n" + guide)]
         messages += _build_chat_messages(state)
 
-        response = llm.invoke(messages, max_tokens=300, temperature=0.7)
+        response = llm.invoke(messages, num_predict=300, temperature=0.7)
         reply    = response.content.strip()
 
         state.setdefault("messages", []).append({
@@ -134,7 +134,7 @@ def node_extract_fields(state: dict) -> dict:
         response  = llm.invoke([
             SystemMessage(content=EXTRACT_FIELDS_SYSTEM),
             HumanMessage(content=last_user),
-        ], max_tokens=300, temperature=0)
+        ], num_predict=300, temperature=0)
 
         extracted = _parse_json_from_llm(response.content)
         if extracted:
@@ -150,7 +150,7 @@ def node_extract_fields(state: dict) -> dict:
                 HumanMessage(
                     content=f"Available slots:\n{slots_str}\n\nUser message: {last_user}"
                 ),
-            ], max_tokens=80, temperature=0)
+            ], num_predict=80, temperature=0)
 
             confirm = _parse_json_from_llm(confirm_response.content)
             if confirm and confirm.get("confirmed"):
@@ -181,7 +181,7 @@ def node_extract_final(state: dict) -> dict:
         response  = llm.invoke([
             SystemMessage(content=EXTRACT_FIELDS_SYSTEM),
             HumanMessage(content=transcript),
-        ], max_tokens=350, temperature=0)
+        ], num_predict=350, temperature=0)
 
         extracted = _parse_json_from_llm(response.content)
         if extracted:
@@ -219,7 +219,7 @@ def node_score_urgency(state: dict) -> dict:
         response = llm.invoke([
             SystemMessage(content=URGENCY_CLASSIFY_SYSTEM),
             HumanMessage(content=json.dumps(urgency_input)),
-        ], max_tokens=100, temperature=0)
+        ], num_predict=100, temperature=0)
 
         result = _parse_json_from_llm(response.content)
         if result:
@@ -299,7 +299,7 @@ def node_score_lead(state: dict) -> dict:
         response = llm.invoke([
             SystemMessage(content=LEAD_SCORING_SYSTEM),
             HumanMessage(content=json.dumps(scoring_input)),
-        ], max_tokens=150, temperature=0)
+        ], num_predict=150, temperature=0)
 
         result = _parse_json_from_llm(response.content)
         if result:
@@ -354,7 +354,7 @@ def node_generate_summary(state: dict) -> dict:
         response = llm.invoke([
             SystemMessage(content=SUMMARY_CLIENT_SYSTEM),
             HumanMessage(content=context_str),
-        ], max_tokens=250, temperature=0.5)
+        ], num_predict=250, temperature=0.5)
         state["summary"] = response.content.strip()
     except Exception as e:
         logger.error(f"node_generate_summary (client) [roofing] failed: {e}")
@@ -370,7 +370,7 @@ def node_generate_summary(state: dict) -> dict:
         response = llm.invoke([
             SystemMessage(content=SUMMARY_INTERNAL_SYSTEM),
             HumanMessage(content=context_str),
-        ], max_tokens=200, temperature=0.3)
+        ], num_predict=200, temperature=0.3)
         state["internal_summary"] = response.content.strip()
     except Exception as e:
         logger.error(f"node_generate_summary (internal) [roofing] failed: {e}")

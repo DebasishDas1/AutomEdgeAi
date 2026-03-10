@@ -1,126 +1,41 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional
+# models/workflow.py
+from __future__ import annotations
+import uuid
 from datetime import datetime
-from uuid import UUID
-from typing import Literal
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any
 
-class WorkflowEventBase(BaseModel):
-    step: int
-    label: str
-    status: str
-    timestamp_str: Optional[str] = None
 
-class WorkflowEventCreate(WorkflowEventBase):
-    lead_id: UUID
+class WorkflowStartRequest(BaseModel):
+    lead_id: uuid.UUID
+    vertical: str
+    force:   bool = Field(False, description="Re-run even if events already exist")
 
-class WorkflowEvent(WorkflowEventBase):
-    id: UUID
-    lead_id: UUID
-    created_at: datetime
+
+class WorkflowStartResponse(BaseModel):
+    lead_id:  uuid.UUID
+    vertical: str
+    status:   str = "started"
+
+
+class WorkflowEventResponse(BaseModel):
+    id:            uuid.UUID
+    lead_id:       uuid.UUID
+    step:          int
+    label:         str
+    status:        str           # active|done|error
+    timestamp_str: str | None
+    created_at:    datetime
 
     class Config:
         from_attributes = True
 
-class WorkflowStreamEvent(BaseModel):
-    type: str # "event" | "error" | "complete"
-    data: dict
 
-from typing import TypedDict, List, Optional
 
-class BaseChatState(TypedDict):
-    # Session
+class HVACChatState(BaseModel):
     session_id: str
-    user_id: Optional[str]
-    started_at: str
-
-    # Conversation
-    messages: List[dict]
-    turn_count: int
-    is_complete: bool
-
-    # Extracted lead data
-    name: Optional[str]
-    email: Optional[str]
-    phone: Optional[str]
-    location: Optional[str]
-    issue: Optional[str]
-    urgency: Optional[str]
-    is_homeowner: Optional[bool]
-    
-    # HVAC
-    system_age: Optional[str]
-    budget_signal: Optional[str]
-    timeline: Optional[str]
-    
-    # Pest Control
-    pest_type: Optional[str]
-    infestation_area: Optional[str]
-    duration: Optional[str]
-    has_damage: Optional[bool]
-    tried_treatment: Optional[bool]
-    wants_annual: Optional[bool]
-    property_type: Optional[str]
-
-    # Plumbing
-    issue_type: Optional[str]
-    problem_area: Optional[str]
-    is_getting_worse: Optional[bool]
-    has_water_damage: Optional[bool]
-    main_shutoff_off: Optional[bool]
-
-    # Roofing
-    damage_type: Optional[str]
-    damage_detail: Optional[str]
-    storm_date: Optional[str]
-    roof_age: Optional[str]
-    has_insurance: Optional[bool]
-    insurance_contacted: Optional[bool]
-    adjuster_involved: Optional[bool]
-    has_interior_leak: Optional[bool]
-
-    # Appointment
-    appt_offered: bool
-    appt_slots: List[str]
-    appt_confirmed: Optional[str]
-    appt_booked: bool
-
-    # Post-chat results
-    summary: Optional[str]
-    internal_summary: Optional[str]
-    score: Optional[str]
-    score_reason: Optional[str]
-    email_sent: bool
-    sheet_row: Optional[int]
-    sheet_tab: Optional[str]
-
-
-class HVACChatState(TypedDict):
-    name: Optional[str]
-    phone: Optional[str]
-    issue: Optional[str]
-    city: Optional[str]
-    step: int
-
-WorkflowStatus = Literal["pending", "running", "complete", "failed"]
-
-
-class WorkflowStartRequest(BaseModel):
-    lead_id:  int
-    vertical: str
-    # Optional override fields — if not provided, pulled from lead record
-    force:    bool = Field(False, description="Re-run even if workflow already ran")
-
-
-class WorkflowStartResponse(BaseModel):
-    workflow_id: str
-    lead_id:     int
-    vertical:    str
-    status:      WorkflowStatus = "pending"
-
-
-class WorkflowEvent(BaseModel):
-    workflow_id: str
-    event:       str            # node name or label e.g. "score_lead"
-    status:      str            # "running" | "done" | "error"
-    detail:      str | None = None
-    ts:          datetime = Field(default_factory=datetime.now)
+    messages: list = Field(default_factory=list)
+    collected_fields: Dict[str, Any] = Field(default_factory=dict)
+    is_complete: bool = False
+    appt_booked: bool = False
+    turn: int = 0

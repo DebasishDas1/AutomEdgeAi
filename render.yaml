@@ -1,0 +1,130 @@
+# render.yaml
+# Render Blueprint — automedge backend
+# Deploy: connect your GitHub repo in Render dashboard → "New Blueprint"
+# Docs: https://render.com/docs/blueprint-spec
+#
+# FREE TIER NOTES:
+#   - Service spins down after 15min inactivity (cold start ~30s)
+#   - Use UptimeRobot to ping /healthz every 5min to keep it warm
+#   - 512MB RAM — enough for FastAPI + SQLAlchemy + LangGraph
+#   - No persistent disk — do NOT use FIREBASE_CREDENTIALS_PATH as a local file
+#     Store Firebase + Sheets credentials as environment variable JSON strings instead
+#     (see FIREBASE_CREDENTIALS_JSON and SHEETS_CREDENTIALS_JSON notes below)
+
+services:
+  - type: web
+    name: automedge-backend
+    runtime: python
+    region: oregon # closest to US West — change to frankfurt for EU
+    plan: free # swap to starter ($7/mo) to eliminate cold starts
+    branch: main # branch to deploy from
+
+    # ── Build ──────────────────────────────────────────────────────────────
+    buildCommand: pip install -r requirements.txt
+
+    # ── Start ──────────────────────────────────────────────────────────────
+    # 2 workers: handles concurrent requests without exceeding free RAM
+    # --timeout 120: LangGraph nodes can be slow on first call
+    # --log-level info: structured logs visible in Render dashboard
+    startCommand: >
+      uvicorn main:app
+      --host 0.0.0.0
+      --port $PORT
+      --workers 2
+      --timeout-keep-alive 120
+      --log-level info
+
+    # ── Health check ───────────────────────────────────────────────────────
+    # Render uses this to confirm deployment succeeded
+    # Also pin this URL in UptimeRobot (every 5min) to prevent free-tier spin-down
+    healthCheckPath: /healthz
+
+    # ── Auto-deploy ────────────────────────────────────────────────────────
+    autoDeploy: true # redeploy on every push to branch
+
+    # ── Environment variables ──────────────────────────────────────────────
+    # Values marked sync: false must be set manually in Render dashboard
+    # (they contain secrets that should never be in this file)
+    #
+    # HOW TO SET SECRETS IN RENDER:
+    #   Dashboard → your service → Environment → Add Environment Variable
+    #
+    # FIREBASE + SHEETS CREDENTIALS:
+    #   On Render you cannot use file paths — there is no persistent disk on free tier.
+    #   Instead, paste the entire JSON content as an env var string:
+    #     FIREBASE_CREDENTIALS_JSON = <contents of your firebase .json file>
+    #     SHEETS_CREDENTIALS_JSON   = <contents of your sheets .json file>
+    #   Then update core/config.py to read these instead of file paths.
+    #   See bottom of this file for the config.py snippet.
+
+    envVars:
+      # ── Runtime ────────────────────────────────────────────────────────
+      - key: ENVIRONMENT
+        value: production # switches LLM to OpenAI/Groq, not Ollama
+
+      - key: PYTHON_VERSION
+        value: "3.12"
+
+      # ── Database (Neon) ────────────────────────────────────────────────
+      - key: DATABASE_URL
+        sync: false # set in Render dashboard — contains password
+
+      # ── Firebase ───────────────────────────────────────────────────────
+      # Paste full JSON string from your service account file
+      - key: FIREBASE_CREDENTIALS_JSON
+        sync: false
+
+      # ── Google Sheets ──────────────────────────────────────────────────
+      # Paste full JSON string from your sheets service account file
+      - key: SHEETS_CREDENTIALS_JSON
+        sync: false
+
+      - key: HVAC_SHEET_ID
+        sync: false
+
+      - key: ROOFING_SHEET_ID
+        sync: false
+
+      - key: PLUMBING_SHEET_ID
+        sync: false
+
+      - key: PEST_SHEET_ID
+        sync: false
+
+      # ── OpenAI ─────────────────────────────────────────────────────────
+      - key: OPENAI_API_KEY
+        sync: false
+
+      # ── Groq (fallback if OpenAI not set) ─────────────────────────────
+      - key: GROQ_API_KEY
+        sync: false
+
+      # ── Twilio ─────────────────────────────────────────────────────────
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+
+      # ── Resend ─────────────────────────────────────────────────────────
+      - key: RESEND_API_KEY
+        sync: false
+
+      # ── Business contact ───────────────────────────────────────────────
+      - key: BUSINESS_PHONE
+        value: "+1-555-000-0000" # update to real number
+
+      - key: TEAM_EMAIL
+        value: "team@automedge.com" # update to real email
+
+      # ── CORS ───────────────────────────────────────────────────────────
+      # Comma-separated list parsed in config.py
+      - key: ALLOWED_ORIGINS
+        value: "https://automedge.com,https://www.automedge.com"
+
+# ── No database service here ───────────────────────────────────────────────
+# Using Neon (external serverless Postgres) — set DATABASE_URL above.
+# Render's managed Postgres is $7/mo minimum and not needed.

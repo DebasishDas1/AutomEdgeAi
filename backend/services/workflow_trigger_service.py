@@ -1,156 +1,167 @@
 # services/workflow_trigger_service.py
-# Triggers a post-chat workflow for an existing lead (dashboard use).
-# The main workflow execution lives in workflow_service.py — this service
-# loads the lead, builds a minimal state dict, and hands it off.
+# Triggers post-chat workflow for an existing lead (dashboard use).
+# Uses WorkflowEvent ORM model — columns: lead_id, step, label, status, timestamp_str
 import json
 import logging
 import uuid
+import asyncio
+from uuid import UUID
 
-import asyncpg
+from sqlalchemy import select, delete
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.workflow import WorkflowStartRequest, WorkflowStartResponse, WorkflowEvent
+from core.database import Lead, WorkflowEvent, ChatSession, get_db_context
+from models.workflow import WorkflowStartRequest, WorkflowStartResponse
 from services import workflow_service
 
 logger = logging.getLogger(__name__)
 
 
 async def start_workflow(
-    db:   asyncpg.Connection,
+    db:   AsyncSession,
     data: WorkflowStartRequest,
 ) -> WorkflowStartResponse:
-    # Load lead from DB
-    row = await db.fetchrow("SELECT * FROM leads WHERE id = $1", data.lead_id)
-    if not row:
+    # Load lead
+    result = await db.execute(select(Lead).where(Lead.id == data.lead_id))
+    lead   = result.scalar_one_or_none()
+    if not lead:
         raise ValueError(f"Lead not found: {data.lead_id}")
 
-    vertical    = data.vertical or row["vertical"]
-    workflow_id = str(uuid.uuid4())
+    vertical = data.vertical or lead.vertical
 
-    # Check if workflow already ran (unless force=True)
+    # Check for existing events unless force=True
     if not data.force:
-        existing = await db.fetchval(
-            "SELECT id FROM workflow_runs WHERE lead_id = $1 AND status = 'complete'",
-            data.lead_id,
+        existing = await db.execute(
+            select(WorkflowEvent).where(WorkflowEvent.lead_id == data.lead_id).limit(1)
         )
-        if existing:
-            raise ValueError(f"Workflow already completed for lead {data.lead_id}. Use force=true to re-run.")
+        if existing.scalar_one_or_none():
+            raise ValueError(
+                f"Workflow events already exist for lead {data.lead_id}. Use force=true to re-run."
+            )
 
-    # Insert workflow_run row
-    await db.execute(
-        """
-        INSERT INTO workflow_runs (workflow_id, lead_id, vertical, status)
-        VALUES ($1, $2, $3, 'pending')
-        """,
-        workflow_id, data.lead_id, vertical,
-    )
+    # Clear old events if force=True
+    if data.force:
+        await db.execute(delete(WorkflowEvent).where(WorkflowEvent.lead_id == data.lead_id))
+        await db.commit()
 
-    # Build state from lead row — enough for post-chat graph to run
-    state = {
-        "session_id":    row.get("session_id") or workflow_id,
-        "vertical":      vertical,
-        "name":          row["name"],
-        "email":         row["email"],
-        "phone":         row["phone"],
-        "location":      row["location"],
-        "issue":         row["issue"],
-        "pest_type":     row["pest_type"],
-        "damage_type":   row["damage_type"],
-        "score":         row["score"],
-        "appt_booked":   row["appt_booked"],
-        "appt_confirmed":row["appt_confirmed"],
-        "messages":      [],
-        "turn_count":    0,
-        "is_complete":   True,
+    # Build state from lead — try to load full chat state if session exists
+    state: dict = {
+        "session_id":  str(lead.session_id or uuid.uuid4()),
+        "vertical":    vertical,
+        "name":        lead.name,
+        "email":       lead.email,
+        "phone":       lead.phone,
+        "city":        lead.city,
+        "issue":       lead.issue,
+        "urgency":     lead.urgency,
+        "score":       lead.score,
+        "appt_booked": bool(lead.booked_at),
+        "messages":    [],
+        "turn_count":  0,
+        "is_complete": True,
     }
 
-    # Load full JSONB state from chat_sessions if session_id exists
-    if row.get("session_id"):
-        session_row = await db.fetchrow(
-            "SELECT state FROM chat_sessions WHERE session_id = $1",
-            row["session_id"],
+    if lead.session_id:
+        sess_result = await db.execute(
+            select(ChatSession).where(ChatSession.session_id == lead.session_id)
         )
-        if session_row:
-            full_state = json.loads(session_row["state"]) if isinstance(session_row["state"], str) else dict(session_row["state"])
-            state.update(full_state)
+        sess = sess_result.scalar_one_or_none()
+        if sess and sess.state:
+            state.update(dict(sess.state))
 
-    logger.info(f"Workflow triggered: workflow_id={workflow_id} lead_id={data.lead_id} vertical={vertical}")
+    # Fire background task
+    asyncio.create_task(_run_workflow(data.lead_id, vertical, state))
 
-    # Run post-chat graph in background — import here to avoid circular
-    from core.database import get_db_connection
-    import asyncio
-
-    async def _run():
-        try:
-            await db.execute(
-                "UPDATE workflow_runs SET status = 'running', started_at = NOW() WHERE workflow_id = $1",
-                workflow_id,
-            )
-            await workflow_service.run_post_chat(state, vertical)
-            async with get_db_connection() as conn:
-                await conn.execute(
-                    "UPDATE workflow_runs SET status = 'complete', finished_at = NOW() WHERE workflow_id = $1",
-                    workflow_id,
-                )
-        except Exception as e:
-            logger.error(f"Workflow failed: {workflow_id} error={e}")
-            async with get_db_connection() as conn:
-                await conn.execute(
-                    "UPDATE workflow_runs SET status = 'failed', finished_at = NOW() WHERE workflow_id = $1",
-                    workflow_id,
-                )
-
-    asyncio.create_task(_run())
-
+    logger.info(f"Workflow triggered: lead_id={data.lead_id} vertical={vertical}")
     return WorkflowStartResponse(
-        workflow_id = workflow_id,
-        lead_id     = data.lead_id,
-        vertical    = vertical,
-        status      = "pending",
+        lead_id  = data.lead_id,
+        vertical = vertical,
+        status   = "started",
     )
 
 
-async def stream_events(
-    db:          asyncpg.Connection,
-    workflow_id: str,
-):
+async def _run_workflow(lead_id: UUID, vertical: str, state: dict) -> None:
+    """Runs the post-chat graph and writes WorkflowEvents to DB."""
+    steps = [
+        "extract_final", "score_urgency", "score_lead",
+        "generate_summary", "send_email", "save_sheets",
+    ]
+    async with get_db_context() as db:
+        try:
+            # Write "active" event for first step
+            await _write_event(db, lead_id, 1, steps[0], "active", "0s")
+
+            result = workflow_service._POST_CHAT_GRAPHS[vertical].invoke(state)
+
+            # Write done events for all steps
+            for i, label in enumerate(steps, start=1):
+                await _write_event(db, lead_id, i, label, "done", f"{i * 3}s")
+
+            # Update lead with score from post-chat
+            lead_result = await db.execute(select(Lead).where(Lead.id == lead_id))  # type: ignore[call-overload]
+            lead = lead_result.scalar_one_or_none()  # type: ignore[assignment]
+            if lead:
+                lead.score       = result.get("score")
+                lead.score_reason= result.get("score_reason")
+                lead.sheet_row   = result.get("sheet_row")
+                await db.commit()
+
+        except Exception as e:
+            logger.error(f"Workflow failed: lead_id={lead_id} error={e}")
+            await _write_event(db, lead_id, 1, "error", "error", str(e)[:50])
+
+
+async def _write_event(
+    db:            AsyncSession,
+    lead_id:       UUID,
+    step:          int,
+    label:         str,
+    status:        str,
+    timestamp_str: str,
+) -> None:
+    event = WorkflowEvent(
+        lead_id       = lead_id,
+        step          = step,
+        label         = label,
+        status        = status,
+        timestamp_str = timestamp_str,
+    )
+    db.add(event)
+    await db.commit()
+
+
+async def stream_events(db: AsyncSession, lead_id: UUID):
     """
-    Async generator — yields WorkflowEvent dicts for SSE streaming.
-    Polls workflow_events table every second until workflow completes.
-    Dashboard uses EventSource to display live node progress.
+    Async generator for SSE stream of WorkflowEvent rows.
+    Polls every second until all steps done or error appears.
     """
-    last_id  = 0
-    max_wait = 120   # 2 minute timeout
+    seen_ids: set = set()
+    max_wait = 120
     waited   = 0
 
     while waited < max_wait:
-        rows = await db.fetch(
-            """
-            SELECT id, event, status, detail, ts
-            FROM workflow_events
-            WHERE workflow_id = $1 AND id > $2
-            ORDER BY id ASC
-            """,
-            workflow_id, last_id,
+        result = await db.execute(
+            select(WorkflowEvent)
+            .where(WorkflowEvent.lead_id == lead_id)
+            .order_by(WorkflowEvent.step)
         )
+        events = result.scalars().all()
 
-        for row in rows:
-            last_id = row["id"]
-            yield {
-                "workflow_id": workflow_id,
-                "event":       row["event"],
-                "status":      row["status"],
-                "detail":      row["detail"],
-                "ts":          row["ts"].isoformat(),
-            }
+        for ev in events:
+            if ev.id not in seen_ids:
+                seen_ids.add(ev.id)
+                yield {
+                    "step":          ev.step,
+                    "label":         ev.label,
+                    "status":        ev.status,
+                    "timestamp_str": ev.timestamp_str,
+                }
 
-        # Check if workflow finished
-        run_status = await db.fetchval(
-            "SELECT status FROM workflow_runs WHERE workflow_id = $1",
-            workflow_id,
-        )
-        if run_status in ("complete", "failed"):
-            break
+        # Stop if last event is done or error
+        if events:
+            last = events[-1]
+            if last.status in ("done", "error") and last.step >= 6:
+                break
 
-        import asyncio
         await asyncio.sleep(1)
         waited += 1

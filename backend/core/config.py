@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     # CORS
     ALLOWED_ORIGINS: list[str] = ["https://automedge.com", "http://localhost:3000"]
 
+    # Business contact (not in .env — override if needed)
+    BUSINESS_PHONE: str = "+1-555-000-0000"
+    TEAM_EMAIL: str = "team@automedge.com"
+
     class Config:
         env_file = ".env"
 

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, X, Send, Bot, Sparkles } from 'lucide-react';
+import { startChatSession, sendChatMessage } from '@/lib/api/chat';
 
 interface QuickReply {
     id: string;
@@ -62,18 +63,48 @@ const VERTICAL_CONFIGS = {
 export const Chatbot = ({ vertical = 'general', accentColor = '#00C2A8' }: ChatbotProps) => {
     const config = VERTICAL_CONFIGS[vertical];
     const [isOpen, setIsOpen] = useState(false);
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            id: '1',
-            text: config.initialMessage,
-            sender: 'bot',
-            timestamp: new Date(),
-            quickReplies: config.quickReplies
-        }
-    ]);
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [sessionId, setSessionId] = useState<string | null>(null);
     const [inputValue, setInputValue] = useState('');
     const [isTyping, setIsTyping] = useState(false);
+    const [isComplete, setIsComplete] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
+
+    const startChat = async () => {
+        if (sessionId) return;
+        setIsTyping(true);
+        try {
+            const data = await startChatSession(vertical);
+            if (data.session_id) {
+                setSessionId(data.session_id);
+                setMessages([{
+                    id: Date.now().toString(),
+                    text: data.message,
+                    sender: 'bot',
+                    timestamp: new Date(),
+                    quickReplies: config.quickReplies
+                }]);
+            }
+        } catch (error) {
+            console.error('Failed to start chat:', error);
+            // Fallback
+            setMessages([{
+                id: '1',
+                text: config.initialMessage,
+                sender: 'bot',
+                timestamp: new Date(),
+                quickReplies: config.quickReplies
+            }]);
+        } finally {
+            setIsTyping(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isOpen && !sessionId && messages.length === 0) {
+            startChat();
+        }
+    }, [isOpen, sessionId, messages.length]);
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -83,7 +114,7 @@ export const Chatbot = ({ vertical = 'general', accentColor = '#00C2A8' }: Chatb
 
     const handleSend = async (text: string = inputValue) => {
         const messageText = text.trim();
-        if (!messageText) return;
+        if (!messageText || isComplete) return;
 
         const userMsg: Message = {
             id: Date.now().toString(),
@@ -96,21 +127,30 @@ export const Chatbot = ({ vertical = 'general', accentColor = '#00C2A8' }: Chatb
         setInputValue('');
         setIsTyping(true);
 
-        // Simulate bot response
-        setTimeout(() => {
+        try {
+            const data = await sendChatMessage(vertical, sessionId!, messageText);
+            
+            if (data.is_complete) setIsComplete(true);
+
             const botMsg: Message = {
                 id: (Date.now() + 1).toString(),
-                text: "That sounds great! Our AI can handle that. Would you like to see a live demo with your business details?",
+                text: data.message || "An error occurred.",
                 sender: 'bot',
                 timestamp: new Date(),
-                quickReplies: [
-                    { id: 'demo-yes', text: 'Yes, book demo' },
-                    { id: 'demo-no', text: 'Maybe later' }
-                ]
+                quickReplies: data.is_complete ? [] : []
             };
             setMessages(prev => [...prev, botMsg]);
+        } catch (error) {
+            console.error('Failed to send message:', error);
+            setMessages(prev => [...prev, {
+                id: (Date.now() + 1).toString(),
+                text: "Sorry, I'm having trouble connecting to the server.",
+                sender: 'bot',
+                timestamp: new Date()
+            }]);
+        } finally {
             setIsTyping(false);
-        }, 1200);
+        }
     };
 
     return (
