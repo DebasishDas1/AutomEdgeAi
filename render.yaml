@@ -29,7 +29,7 @@ services:
         value: prod
 
       - key: PYTHON_VERSION
-        value: "3.12"
+        value: "3.12.9"
 
       # ── Database ────────────────────────────────────────────────────────
       - key: DATABASE_URL
