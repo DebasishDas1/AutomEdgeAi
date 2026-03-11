@@ -91,7 +91,7 @@ export function ContactSection() {
                         <h3 className="text-xl font-outfit font-black tracking-[0.3em] uppercase opacity-40">Direct Contact</h3>
                         <div className="space-y-6">
                             <a
-                                href="https://wa.me/yournumber"
+                                href="https://wa.me/9830561158"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex flex-col sm:flex-row items-center gap-8 p-8 rounded-[2.5rem] border-2 border-border hover:border-accent/40 bg-card hover:bg-accent/5 transition-all group shadow-sm hover:shadow-xl"

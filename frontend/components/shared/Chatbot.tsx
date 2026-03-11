@@ -68,6 +68,12 @@ export const Chatbot = ({ vertical = 'general', accentColor = '#00C2A8' }: Chatb
     const [inputValue, setInputValue] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const [isComplete, setIsComplete] = useState(false);
+    // Counter that survives re‑renders – provides stable incremental IDs
+    const idCounter = useRef(0);
+    const nextId = () => {
+        idCounter.current += 1;
+        return `msg-${idCounter.current}`;
+    };
     const scrollRef = useRef<HTMLDivElement>(null);
 
     const startChat = async () => {
@@ -78,7 +84,7 @@ export const Chatbot = ({ vertical = 'general', accentColor = '#00C2A8' }: Chatb
             if (data.session_id) {
                 setSessionId(data.session_id);
                 setMessages([{
-                    id: Date.now().toString(),
+                    id: nextId(),
                     text: data.message,
                     sender: 'bot',
                     timestamp: new Date(),
@@ -117,7 +123,7 @@ export const Chatbot = ({ vertical = 'general', accentColor = '#00C2A8' }: Chatb
         if (!messageText || isComplete) return;
 
         const userMsg: Message = {
-            id: Date.now().toString(),
+            id: nextId(),
             text: messageText,
             sender: 'user',
             timestamp: new Date()
@@ -128,12 +134,13 @@ export const Chatbot = ({ vertical = 'general', accentColor = '#00C2A8' }: Chatb
         setIsTyping(true);
 
         try {
-            const data = await sendChatMessage(vertical, sessionId!, messageText);
+            if (!sessionId) return; // safety guard
+            const data = await sendChatMessage(vertical, sessionId, messageText);
             
             if (data.is_complete) setIsComplete(true);
 
             const botMsg: Message = {
-                id: (Date.now() + 1).toString(),
+                id: nextId(),
                 text: data.message || "An error occurred.",
                 sender: 'bot',
                 timestamp: new Date(),
@@ -143,7 +150,7 @@ export const Chatbot = ({ vertical = 'general', accentColor = '#00C2A8' }: Chatb
         } catch (error) {
             console.error('Failed to send message:', error);
             setMessages(prev => [...prev, {
-                id: (Date.now() + 1).toString(),
+                id: nextId(),
                 text: "Sorry, I'm having trouble connecting to the server.",
                 sender: 'bot',
                 timestamp: new Date()
@@ -315,3 +322,5 @@ export const Chatbot = ({ vertical = 'general', accentColor = '#00C2A8' }: Chatb
         </>
     );
 };
+
+export default Chatbot;

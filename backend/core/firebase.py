@@ -2,6 +2,7 @@ import firebase_admin
 from firebase_admin import credentials, auth
 from core.config import settings
 import logging
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -13,7 +14,9 @@ def init_firebase():
     global _firebase_initialized
     if not _firebase_initialized:
         try:
-            cred = credentials.Certificate(settings.FIREBASE_CREDENTIALS_PATH)
+            cred = credentials.Certificate(
+                json.loads(settings.FIREBASE_CREDENTIALS_JSON)
+            )
             firebase_admin.initialize_app(cred)
             _firebase_initialized = True
             logger.info("Firebase Admin SDK initialized successfully.")

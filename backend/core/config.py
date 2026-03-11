@@ -1,40 +1,73 @@
-from pydantic_settings import BaseSettings
+import json
+from typing import List, Optional
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
-    # Neon
-    DATABASE_URL: str
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore"
+    )
+
+    # Database
+    DATABASE_URL: Optional[str] = None
 
     # Firebase
-    FIREBASE_CREDENTIALS_PATH: str
+    FIREBASE_CREDENTIALS_JSON: Optional[str] = None
 
     # Google Sheets
-    SHEETS_CREDENTIALS_PATH: str
-    HVAC_SHEET_ID: str
-    ROOFING_SHEET_ID: str
-    PLUMBING_SHEET_ID: str
-    PEST_SHEET_ID: str
+    SHEETS_CREDENTIALS_JSON: Optional[str] = None
+    HVAC_SHEET_ID: Optional[str] = None
+    ROOFING_SHEET_ID: Optional[str] = None
+    PLUMBING_SHEET_ID: Optional[str] = None
+    PEST_SHEET_ID: Optional[str] = None
 
     # Twilio
-    TWILIO_ACCOUNT_SID: str
-    TWILIO_AUTH_TOKEN: str
-    TWILIO_FROM_NUMBER: str
+    TWILIO_ACCOUNT_SID: Optional[str] = None
+    TWILIO_AUTH_TOKEN: Optional[str] = None
+    TWILIO_FROM_NUMBER: Optional[str] = None
 
-    # Resend
-    RESEND_API_KEY: str
+    # Email
+    RESEND_API_KEY: Optional[str] = None
 
-    # OpenAI (LangGraph)
-    OPENAI_API_KEY: str | None = None
-    GROQ_API_KEY: str | None = None
-    MAX_TOKEN: int = 3000
+    # LLM
+    GROQ_API_KEY: Optional[str] = None
 
     # CORS
-    ALLOWED_ORIGINS: list[str] = ["https://automedge.com", "http://localhost:3000"]
+    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000"]
 
-    # Business contact (not in .env — override if needed)
-    BUSINESS_PHONE: str = "+1-555-000-0000"
-    TEAM_EMAIL: str = "team@automedge.com"
+    # Limits
+    MAX_TOKEN: int = 1024
 
-    class Config:
-        env_file = ".env"
+    # Environment
+    ENVIRONMENT: str = "dev"
+
+    # Ollama
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3"
+
+    # ---------- Validators ----------
+
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def split_origins(cls, v):
+        if isinstance(v, str):
+            return [i.strip() for i in v.split(",")]
+        return v
+
+    # ---------- Helpers ----------
+
+    def sheets_credentials_dict(self):
+        if not self.SHEETS_CREDENTIALS_JSON:
+            return None
+        return json.loads(self.SHEETS_CREDENTIALS_JSON)
+
+    def firebase_credentials_dict(self):
+        if not self.FIREBASE_CREDENTIALS_JSON:
+            return None
+        return json.loads(self.FIREBASE_CREDENTIALS_JSON)
+
 
 settings = Settings()
