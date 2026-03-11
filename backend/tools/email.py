@@ -7,38 +7,40 @@ logger = logging.getLogger(__name__)
 
 class EmailTool:
 
-    def send_email(self, to: str, subject: str, html_body: str) -> dict:
+    def send_email(
+        self,
+        to:        str,
+        subject:   str,
+        html:      str,               # nodes.py passes html= (not html_body)
+        from_name: str = "automedge", # nodes.py passes from_name=
+    ) -> dict:
 
-        # Dev mode mock
-        if settings.ENVIRONMENT != "production":
-            logger.info(f"[MOCK EMAIL]\nto={to}\nsubject={subject}")
+        if settings.ENVIRONMENT != "prod":
+            logger.info(f"[MOCK EMAIL] to={to} subject={subject}")
             return {"id": "mock_email", "status": "sent"}
+
+        if not settings.RESEND_API_KEY:
+            logger.warning("RESEND_API_KEY not set")
+            return {"status": "error", "error": "missing api key"}
 
         try:
             resend.api_key = settings.RESEND_API_KEY
 
+            from_addr = getattr(settings, "EMAIL_FROM", "onboarding@resend.dev")
+            sender    = f"{from_name} <{from_addr}>"
+
             response = resend.Emails.send({
-                "from": settings.EMAIL_FROM,
-                "to": [to],
+                "from":    "onboarding@resend.dev",
+                "to":      [to],
                 "subject": subject,
-                "html": html_body,
+                "html":    html,
             })
+            logger.info(f"email sent id={response['id']} to={to}")
+            return {"id": response["id"], "status": "sent"}
 
-            logger.info(f"Email sent via Resend → id={response['id']}")
-
-            return {
-                "id": response["id"],
-                "status": "sent"
-            }
-
-        except Exception as e:
-            logger.exception("Email sending failed")
-            return {
-                "id": None,
-                "status": "failed",
-                "error": str(e)
-            }
+        except Exception as exc:
+            logger.error(f"email failed to={to}: {exc}")
+            return {"id": None, "status": "error", "error": str(exc)}
 
 
-# exported tool instance
 email_tool = EmailTool()

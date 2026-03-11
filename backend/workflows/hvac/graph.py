@@ -56,10 +56,10 @@ def build_hvac_post_chat_graph() -> StateGraph:
     g.add_edge("extract_final",    "score_lead")
     g.add_edge("score_lead",       "generate_summary")
 
-    # Skip email for cold leads with no email address
+    # Send email to anyone who provided one — cold leads still get a summary
     g.add_conditional_edges(
         "generate_summary",
-        lambda state: "email" if state.get("email") and state.get("score") != "cold" else "no_email",
+        lambda state: "email" if state.get("email") else "no_email",
         {"email": "send_email", "no_email": "save_sheets"},
     )
     g.add_edge("send_email", "save_sheets")
