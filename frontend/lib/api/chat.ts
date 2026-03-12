@@ -1,34 +1,59 @@
 // lib/api/chat.ts
-const API = () => process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// All chat API calls go through here.
+// Set NEXT_PUBLIC_API_URL in .env.local (dev) or Vercel env vars (prod).
+//
+// .env.local (local dev):
+//   NEXT_PUBLIC_API_URL=http://localhost:8000
+//
+// Vercel dashboard (production):
+//   NEXT_PUBLIC_API_URL=https://automedge-backend.onrender.com
+
+const baseUrl = () =>
+  process.env.NEXT_PUBLIC_API_URL ?? "https://automedge-backend.onrender.com";
 
 export interface StartChatResponse {
   session_id: string;
-  vertical: string;
-  // message: string;
-  turn: number;
+  vertical:   string;
+  turn:       number;
 }
 
 export interface SendMessageResponse {
-  session_id: string;
-  message: string;
-  turn: number;
-  is_complete: boolean;
-  appt_booked: boolean;
+  session_id:       string;
+  message:          string;
+  turn:             number;
+  is_complete:      boolean;
+  appt_booked:      boolean;
   fields_collected: Record<string, unknown>;
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API()}${path}`, {
-    method: "POST",
+  const res = await fetch(`${baseUrl()}${path}`, {
+    method:  "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body:    JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    const detail = await res.text().catch(() => res.statusText);
+    throw new Error(`${res.status}: ${detail}`);
+  }
   return res.json();
 }
 
-export const startChatSession = (vertical: string, source = "web_chat") =>
-  post<StartChatResponse>(`/api/v1/chat/${vertical}/start`, { source });
+// Maps "general" to "hvac" — backend has no /general vertical
+const toApiVertical = (v: string) => (v === "general" ? "hvac" : v);
 
-export const sendChatMessage = (vertical: string, session_id: string, message: string) =>
-  post<SendMessageResponse>(`/api/v1/chat/${vertical}/message`, { session_id, message });
+export const startChatSession = (vertical: string, source = "web_chat") =>
+  post<StartChatResponse>(
+    `/api/v1/chat/${toApiVertical(vertical)}/start`,
+    { source }
+  );
+
+export const sendChatMessage = (
+  vertical:   string,
+  session_id: string,
+  message:    string
+) =>
+  post<SendMessageResponse>(
+    `/api/v1/chat/${toApiVertical(vertical)}/message`,
+    { session_id, message }
+  );
