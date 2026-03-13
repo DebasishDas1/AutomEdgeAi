@@ -33,7 +33,9 @@ app.add_middleware(
 
 app.include_router(router, prefix="/api/v1")
 
-
-@app.get("/health", tags=["health"])
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "service": "automedge-backend"
+    }
