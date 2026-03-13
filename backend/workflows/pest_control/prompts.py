@@ -296,3 +296,51 @@ SMS_ANNUAL_PLAN_FOLLOWUP = (
 SMS_REVIEW_REQUEST = (
     "Hi {name}, thanks for choosing us for pest control! A quick Google review helps homeowners find us: {review_url} Reply STOP to opt out."
 )
+# ══════════════════════════════════════════════════════════════════════════════
+# SUMMARY — replaced URGENCY_CLASSIFY_SYSTEM and LEAD_SCORING_SYSTEM
+# Both are now handled by rule_score_lead() in workflows/base.py (zero LLM tokens)
+# ══════════════════════════════════════════════════════════════════════════════
+
+SUMMARY_COMBINED_SYSTEM = """Generate two summaries from the pest control lead JSON.
+
+Return ONLY JSON with two keys:
+
+{
+"client": "...",
+"internal": "..."
+}
+
+CLIENT SUMMARY
+2-3 sentences for customer email.
+Second person voice ("You mentioned…").
+Include pest type, location if known, appointment if booked.
+Mention annual plan interest if wants_annual=true.
+Never mention lead score or internal info.
+Start with "Hi [name]," if name exists.
+
+INTERNAL SUMMARY
+1-2 sentence sales note for the service team.
+Start with score prefix:
+
+HOT -
+WARM -
+COLD -
+
+Include pest type, damage signal, annual plan interest, and suggested next action.
+"""
+
+# Compatibility aliases
+SUMMARY_CLIENT_SYSTEM   = SUMMARY_COMBINED_SYSTEM
+SUMMARY_INTERNAL_SYSTEM = SUMMARY_COMBINED_SYSTEM
+
+SMS_INSPECTION_CONFIRM = (
+    "Hi {name}! Your free pest inspection is confirmed: {appt_datetime}. Specialist calls 15 min before arrival. Questions? Call {business_phone}. Reply STOP to opt out."
+)
+
+SMS_ANNUAL_PLAN_FOLLOWUP = (
+    "Hi {name}, quick follow-up from your inspection. Annual protection plan: quarterly treatments + free re-treatments. Interested? Reply YES for details. Reply STOP to opt out."
+)
+
+SMS_REVIEW_REQUEST = (
+    "Hi {name}, thanks for choosing us for pest control! A quick Google review helps homeowners find us: {review_url} Reply STOP to opt out."
+)

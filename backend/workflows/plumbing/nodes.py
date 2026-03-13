@@ -1,24 +1,34 @@
 # workflows/plumbing/nodes.py
-# Plumbing-specific nodes.
-# Key difference from HVAC/pest: emergency path skips diagnostic turns,
-# jumps straight to address + phone collection and immediate dispatch.
+# Optimized to match HVAC pattern:
+#   - All helpers imported from workflows.base
+#   - llm.invoke() throughout
+#   - rule_score_lead() replaces URGENCY_CLASSIFY_SYSTEM + LEAD_SCORING_SYSTEM
+#   - SUMMARY_COMBINED_SYSTEM: 1 call → JSON {client, internal}
+#   - Emergency path preserved: node_emergency_sms still fires before score_lead
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import SystemMessage, HumanMessage
 
 from llm import llm
 from core.config import settings
+from workflows.base import (
+    field_missing,
+    merge_extracted,
+    parse_json,
+    build_lc_messages,
+    last_user_msg,
+    full_transcript,
+    get_appt_slots,
+    rule_score_lead,
+)
 from workflows.plumbing.prompts import (
     PLUMBING_EXPERT_SYSTEM,
     FIELD_COLLECTION_GUIDE,
     EXTRACT_FIELDS_SYSTEM,
     APPOINTMENT_CONFIRM_SYSTEM,
-    URGENCY_CLASSIFY_SYSTEM,
-    LEAD_SCORING_SYSTEM,
-    SUMMARY_CLIENT_SYSTEM,
-    SUMMARY_INTERNAL_SYSTEM,
+    SUMMARY_COMBINED_SYSTEM,
     SMS_EMERGENCY_DISPATCH,
 )
 from tools.email import email_tool
@@ -27,157 +37,193 @@ from tools.sms import sms_tool
 
 logger = logging.getLogger(__name__)
 
+_REQUIRED = ["name", "email", "issue"]
+_SOFT     = ["phone", "location", "issue_type", "has_water_damage", "is_homeowner"]
+
+_FIELD_PRIORITY = [
+    "issue",
+    "issue_type",
+    "problem_area",
+    "location",
+    "has_water_damage",
+    "is_homeowner",
+    "name",
+    "phone",
+    "email",
+]
+
+_CONFIRM_SIGNALS = {
+    "option", "number", "slot", "works", "perfect", "great", "sure",
+    "yes", "sounds good", "lets do", "that one", "morning", "afternoon",
+    "pm", "am", "monday", "tuesday", "wednesday", "thursday",
+    "friday", "saturday", "sunday", "tomorrow",
+}
+
+_GOODBYE_SIGNALS = {
+    "bye", "goodbye", "thanks", "thank you", "done",
+    "never mind", "all good",
+}
+
+_EMERGENCY_KEYWORDS = {
+    "burst", "flooding", "flood", "sewage", "backup",
+    "overflow", "gushing", "pouring", "water everywhere",
+}
+
+
+def _is_emergency(state: dict) -> bool:
+    """True when urgency or issue_type already flagged as emergency."""
+    if state.get("urgency") == "emergency" or state.get("issue_type") == "emergency":
+        return True
+    issue = (state.get("issue") or "").lower()
+    return any(kw in issue for kw in _EMERGENCY_KEYWORDS)
+
+
+def _looks_like_confirmation(text: str) -> bool:
+    lower = text.lower()
+    return any(sig in lower for sig in _CONFIRM_SIGNALS)
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CHAT GRAPH NODES
 # ══════════════════════════════════════════════════════════════════════════════
 
-def node_check_complete(state: dict) -> dict:
-    """
-    Emergency path: complete when address + phone collected.
-    Routine path: complete when all required fields + appt booked.
-    """
-    logger.info("node_check_complete [plumbing]")
+def node_extract_fields(state: dict) -> dict:
+    msg = last_user_msg(state)
+    if not msg:
+        return state
 
-    if _is_emergency(state):
-        # Emergency only needs phone + location to dispatch
-        has_emergency_info = (
-            not _field_missing(state, "phone") and
-            not _field_missing(state, "location")
+    try:
+        resp = llm.invoke(
+            [
+                SystemMessage(content=EXTRACT_FIELDS_SYSTEM),
+                HumanMessage(content=msg),
+            ],
+            max_tokens=180,
+            temperature=0,
         )
-        if has_emergency_info:
-            logger.info("Complete: emergency — phone + location collected")
-            state["is_complete"] = True
-            state["appt_booked"] = True   # emergency = immediate dispatch
-            return state
-    else:
-        # Routine: need full info + appointment
-        routine_required = ["name", "email", "phone", "issue", "location"]
-        has_all = all(not _field_missing(state, f) for f in routine_required)
-        if has_all and state.get("appt_booked"):
-            logger.info("Complete: routine — all fields + appointment booked")
-            state["is_complete"] = True
-            return state
+        extracted = parse_json(resp.content)
+        if extracted:
+            # Auto-flag emergency from extracted issue_type
+            if extracted.get("issue_type") == "emergency":
+                state["urgency"] = "emergency"
+            merge_extracted(state, extracted)
+    except Exception as exc:
+        logger.error(f"field extraction failed [plumbing]: {exc}")
 
-    last_user = _last_user_message(state)
-    if last_user:
-        end_signals = ["bye", "thanks", "goodbye", "done", "no thanks", "never mind"]
-        if any(s in last_user.lower() for s in end_signals):
-            logger.info("Complete: goodbye signal")
+    # Appointment confirmation (skip for emergencies — dispatch handles it)
+    if (
+        not _is_emergency(state)
+        and state.get("appt_slots")
+        and not state.get("appt_booked")
+        and _looks_like_confirmation(msg)
+    ):
+        try:
+            slots = "\n".join(f"{i+1}. {s}" for i, s in enumerate(state["appt_slots"]))
+            resp  = llm.invoke(
+                [
+                    SystemMessage(content=APPOINTMENT_CONFIRM_SYSTEM),
+                    HumanMessage(content=f"{slots}\n\nUser: {msg}"),
+                ],
+                max_tokens=50,
+                temperature=0,
+            )
+            confirm = parse_json(resp.content)
+            if confirm and confirm.get("confirmed"):
+                idx = max(0, min(int(confirm.get("slot_index", 0)), len(state["appt_slots"]) - 1))
+                state["appt_booked"]    = True
+                state["appt_confirmed"] = state["appt_slots"][idx]
+                logger.info(f"appointment booked [plumbing]: {state['appt_confirmed']}")
+        except Exception as exc:
+            logger.error(f"appointment confirm failed [plumbing]: {exc}")
+
+    return state
+
+
+def node_check_complete(state: dict) -> dict:
+    if state.get("is_complete"):
+        return state
+
+    # Emergency: only phone + location needed — dispatch immediately
+    if _is_emergency(state):
+        if not field_missing(state, "phone") and not field_missing(state, "location"):
+            logger.info("Complete: emergency — phone + location collected [plumbing]")
             state["is_complete"] = True
+            state["appt_booked"] = True  # emergency = immediate dispatch
+        return state
+
+    has_required = all(not field_missing(state, f) for f in _REQUIRED)
+
+    if has_required and state.get("appt_booked"):
+        state["is_complete"] = True
+        return state
+
+    if has_required and not field_missing(state, "name") and state.get("turn_count", 0) >= 3:
+        state["is_complete"] = True
+        return state
+
+    msg = last_user_msg(state)
+    if msg and any(sig in msg.lower() for sig in _GOODBYE_SIGNALS):
+        state["is_complete"] = True
 
     return state
 
 
 def node_chat_reply(state: dict) -> dict:
-    """
-    Generates Sam's reply.
-    Emergency: terse, action-focused, skips diagnostic questions.
-    Routine: thorough diagnostic conversation.
-    """
-    logger.info("node_chat_reply [plumbing]")
     try:
         if not state.get("appt_slots"):
-            state["appt_slots"] = get_appointment_slots()
+            state["appt_slots"] = get_appt_slots()
 
         slots = state["appt_slots"]
-        issue_type = state.get("issue_type", "unknown")
 
-        sys_msg = PLUMBING_EXPERT_SYSTEM
-        sys_msg = sys_msg.replace("{slot_1}", slots[0])
-        sys_msg = sys_msg.replace("{slot_2}", slots[1])
-        sys_msg = sys_msg.replace("{slot_3}", slots[2])
-
-        collected = {
-            k: state.get(k)
-            for k in [
-                "name", "email", "phone", "location", "issue",
-                "issue_type", "problem_area", "duration",
-                "is_getting_worse", "has_water_damage",
-                "main_shutoff_off", "is_homeowner", "property_type",
-            ]
-        }
-        missing = [k for k, v in collected.items() if v is None]
-        guide = FIELD_COLLECTION_GUIDE.format(
-            current_state=json.dumps(collected, default=str),
-            missing_fields=", ".join(missing) if missing else "none",
-            issue_type=issue_type,
+        sys_msg = (
+            PLUMBING_EXPERT_SYSTEM
+            .replace("{slot_1}", slots[0])
+            .replace("{slot_2}", slots[1])
+            .replace("{slot_3}", slots[2])
         )
 
-        messages = [SystemMessage(content=sys_msg + "\n\n" + guide)]
-        messages += _build_chat_messages(state)
+        all_fields = _REQUIRED + _SOFT
+        collected  = {k: state.get(k) for k in all_fields}
+        have       = {k: v for k, v in collected.items() if v is not None}
+        missing    = {k for k, v in collected.items() if v is None}
+        next_field = next((f for f in _FIELD_PRIORITY if f in missing), "none")
 
-        # Emergency: shorter, faster reply
-        max_tokens = 150 if _is_emergency(state) else 300
-        response   = llm.invoke(messages, num_predict=max_tokens, temperature=0.6)
-        reply      = response.content.strip()
+        has_required = all(not field_missing(state, f) for f in _REQUIRED)
+        phase = (
+            "CONFIRM"  if state.get("appt_booked")                    else
+            "EMERGENCY" if _is_emergency(state)                        else
+            "OFFER"    if has_required                                  else
+            "DIAGNOSE"
+        )
 
-        state.setdefault("messages", []).append({
-            "role":    "assistant",
-            "content": reply,
-            "ts":      datetime.now().isoformat(),
-        })
-        state["turn_count"] = state.get("turn_count", 0) + 1
+        guide = FIELD_COLLECTION_GUIDE.format(
+            phase=phase,
+            next_field=next_field,
+            appt_confirmed=state.get("appt_confirmed") or "none",
+            collected=json.dumps(have),
+            collected_count=len(have),
+            total_count=len(all_fields),
+            issue_type=state.get("issue_type", "unknown"),
+        )
 
-    except Exception as e:
-        logger.error(f"node_chat_reply [plumbing] failed: {e}")
-        state.setdefault("messages", []).append({
-            "role":    "assistant",
-            "content": "Sorry, I had a brief issue. Could you repeat that?",
-            "ts":      datetime.now().isoformat(),
-        })
+        messages = [SystemMessage(content=sys_msg + "\n" + guide)]
+        messages += build_lc_messages(state)
 
-    return state
+        # Emergency: terse reply, faster
+        max_tokens = 150 if _is_emergency(state) else 250
+        resp  = llm.invoke(messages, max_tokens=max_tokens, temperature=0.6)
+        reply = resp.content.strip()
 
+    except Exception as exc:
+        logger.error(f"chat reply failed [plumbing]: {exc}")
+        reply = "Sorry, something went wrong. Could you repeat that?"
 
-def node_extract_fields(state: dict) -> dict:
-    """
-    Extracts plumbing-specific fields from latest user message.
-    Emergency detection gates appointment confirmation logic.
-    """
-    logger.info("node_extract_fields [plumbing]")
-    try:
-        last_user = _last_user_message(state)
-        if not last_user:
-            return state
-
-        response  = llm.invoke([
-            SystemMessage(content=EXTRACT_FIELDS_SYSTEM),
-            HumanMessage(content=last_user),
-        ], num_predict=300, temperature=0)
-
-        extracted = _parse_json_from_llm(response.content)
-        if extracted:
-            state = _merge_extracted(state, extracted)
-
-        # Appointment confirmation — routine only
-        # Emergency path books immediately without slot selection
-        if (
-            not _is_emergency(state)
-            and state.get("appt_slots")
-            and not state.get("appt_booked")
-        ):
-            slots_str = "\n".join(
-                f"{i+1}. {s}" for i, s in enumerate(state["appt_slots"])
-            )
-            confirm_response = llm.invoke([
-                SystemMessage(content=APPOINTMENT_CONFIRM_SYSTEM),
-                HumanMessage(
-                    content=f"Available slots:\n{slots_str}\n\nUser message: {last_user}"
-                ),
-            ], num_predict=80, temperature=0)
-
-            confirm = _parse_json_from_llm(confirm_response.content)
-            if confirm and confirm.get("confirmed"):
-                idx = confirm.get("slot_index", 0)
-                idx = idx if 0 <= idx < len(state["appt_slots"]) else 0
-                state["appt_booked"]    = True
-                state["appt_confirmed"] = state["appt_slots"][idx]
-                logger.info(f"Appointment booked: {state['appt_confirmed']}")
-
-    except Exception as e:
-        logger.error(f"node_extract_fields [plumbing] failed: {e}")
-
+    state.setdefault("messages", []).append({
+        "role":    "assistant",
+        "content": reply,
+        "ts":      datetime.utcnow().isoformat(),
+    })
+    state["turn_count"] = state.get("turn_count", 0) + 1
     return state
 
 
@@ -186,95 +232,54 @@ def node_extract_fields(state: dict) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def node_extract_final(state: dict) -> dict:
-    """Final extraction pass over full transcript."""
-    logger.info("node_extract_final [plumbing]")
+    missing = [f for f in _REQUIRED if field_missing(state, f)]
+    if not missing:
+        return state
+
     try:
-        transcript = _full_transcript(state)
-        if not transcript:
-            return state
-
-        response  = llm.invoke([
-            SystemMessage(content=EXTRACT_FIELDS_SYSTEM),
-            HumanMessage(content=transcript),
-        ], num_predict=350, temperature=0)
-
-        extracted = _parse_json_from_llm(response.content)
+        resp = llm.invoke(
+            [
+                SystemMessage(content=EXTRACT_FIELDS_SYSTEM),
+                HumanMessage(content=full_transcript(state)),
+            ],
+            max_tokens=200,
+            temperature=0,
+        )
+        extracted = parse_json(resp.content)
         if extracted:
-            state = _merge_extracted(state, extracted)
-
-    except Exception as e:
-        logger.error(f"node_extract_final [plumbing] failed: {e}")
+            merge_extracted(state, extracted)
+    except Exception as exc:
+        logger.error(f"final extraction failed [plumbing]: {exc}")
 
     return state
 
 
 def node_score_urgency(state: dict) -> dict:
     """
-    Classifies urgency as emergency/urgent/routine.
-    Plumbing urgency is the most time-sensitive of all 4 verticals.
-    Water damage compounds every minute — emergency must be detected fast.
+    Rule-based urgency + scoring (zero LLM tokens).
+    Replaces URGENCY_CLASSIFY_SYSTEM + LEAD_SCORING_SYSTEM.
+    Emergency fast-path: skip if already flagged during chat.
     """
     logger.info("node_score_urgency [plumbing]")
 
-    # Fast path: if already detected as emergency during chat, trust it
-    if state.get("urgency") == "emergency" or state.get("issue_type") == "emergency":
-        logger.info("Urgency already classified as emergency — skipping LLM call")
+    # Fast path: trust emergency already set during chat
+    if _is_emergency(state):
         state["urgency"] = "emergency"
-        return state
+        logger.info("urgency=emergency (fast path) [plumbing]")
 
-    try:
-        urgency_input = {
-            "issue_type":      state.get("issue_type"),
-            "issue":           state.get("issue"),
-            "has_water_damage":state.get("has_water_damage"),
-            "is_getting_worse":state.get("is_getting_worse"),
-            "problem_area":    state.get("problem_area"),
-            "property_type":   state.get("property_type"),
-        }
-
-        response = llm.invoke([
-            SystemMessage(content=URGENCY_CLASSIFY_SYSTEM),
-            HumanMessage(content=json.dumps(urgency_input)),
-        ], num_predict=100, temperature=0)
-
-        result = _parse_json_from_llm(response.content)
-        if result:
-            urgency = result.get("urgency", "routine").lower()
-            valid   = {"emergency", "urgent", "routine"}
-            state["urgency"] = urgency if urgency in valid else "routine"
-            logger.info(f"Urgency: {state['urgency']} | {result.get('reason')}")
-        else:
-            # Fallback: keyword-based detection
-            issue = (state.get("issue") or "").lower()
-            emergency_keywords = {
-                "burst", "flooding", "flood", "spray", "sewage",
-                "backup", "overflow", "gushing", "pouring",
-            }
-            urgent_keywords = {"no hot water", "no water", "overflow", "toilet overflow"}
-            if any(kw in issue for kw in emergency_keywords):
-                state["urgency"] = "emergency"
-            elif any(kw in issue for kw in urgent_keywords):
-                state["urgency"] = "urgent"
-            else:
-                state["urgency"] = "routine"
-
-    except Exception as e:
-        logger.error(f"node_score_urgency [plumbing] failed: {e}")
-        state["urgency"] = "routine"
-
+    state["vertical"] = "plumbing"
+    result = rule_score_lead(state)
+    state.update(result)
+    logger.info(f"scored [plumbing]: {result['score']} ({result['score_number']}) urgency={result['urgency']}")
     return state
 
 
 def node_emergency_sms(state: dict) -> dict:
-    """
-    Emergency-only node: sends immediate SMS dispatch confirmation.
-    Only runs on emergency path in post_chat_graph.
-    Routine leads get email confirmation only.
-    """
+    """Emergency-only: immediate SMS dispatch. Routine leads → email only."""
     logger.info("node_emergency_sms [plumbing]")
 
     if not state.get("phone"):
-        logger.info("No phone for emergency SMS — skipping")
+        logger.info("no phone for emergency SMS [plumbing]")
         return state
 
     try:
@@ -285,63 +290,22 @@ def node_emergency_sms(state: dict) -> dict:
         )
         result = sms_tool.send_sms(to=state["phone"], body=msg)
         state["sms_sent"] = result.get("status") == "sent"
-        logger.info(f"Emergency SMS sent={state['sms_sent']} to {state['phone']}")
-
-    except Exception as e:
-        logger.error(f"node_emergency_sms [plumbing] failed: {e}")
+        logger.info(f"emergency SMS sent={state['sms_sent']} [plumbing]")
+    except Exception as exc:
+        logger.error(f"emergency SMS failed [plumbing]: {exc}")
         state["sms_sent"] = False
 
     return state
 
 
 def node_score_lead(state: dict) -> dict:
-    """Scores lead hot/warm/cold with plumbing-specific criteria."""
-    logger.info("node_score_lead [plumbing]")
-    try:
-        scoring_input = {
-            "issue_type":      state.get("issue_type"),
-            "urgency":         state.get("urgency"),
-            "is_homeowner":    state.get("is_homeowner"),
-            "has_water_damage":state.get("has_water_damage"),
-            "is_getting_worse":state.get("is_getting_worse"),
-            "property_type":   state.get("property_type"),
-            "email":           bool(state.get("email")),
-            "phone":           bool(state.get("phone")),
-            "appt_booked":     state.get("appt_booked"),
-            "turn_count":      state.get("turn_count"),
-            "problem_area":    state.get("problem_area"),
-        }
-
-        response = llm.invoke([
-            SystemMessage(content=LEAD_SCORING_SYSTEM),
-            HumanMessage(content=json.dumps(scoring_input)),
-        ], num_predict=150, temperature=0)
-
-        result = _parse_json_from_llm(response.content)
-        if result:
-            score = result.get("score", "warm").lower()
-            state["score"]        = score if score in ("hot", "warm", "cold") else "warm"
-            state["score_reason"] = result.get("reason", "")
-            logger.info(f"Lead scored: {state['score']} | {state['score_reason']}")
-        else:
-            # Emergency always HOT even if parsing fails
-            if state.get("urgency") == "emergency":
-                state["score"]        = "hot"
-                state["score_reason"] = "Emergency plumbing issue — auto-scored hot"
-            else:
-                state["score"]        = "warm"
-                state["score_reason"] = "Could not parse scoring output"
-
-    except Exception as e:
-        logger.error(f"node_score_lead [plumbing] failed: {e}")
-        state["score"]        = "hot" if _is_emergency(state) else "warm"
-        state["score_reason"] = f"Scoring error: {str(e)}"
-
+    """No-op: scoring done in node_score_urgency. Kept for graph wiring."""
+    logger.info("node_score_lead [plumbing] — already scored, skipping")
     return state
 
 
 def node_generate_summary(state: dict) -> dict:
-    """Two separate summaries: client email + internal Sheets note."""
+    """Single LLM call → JSON {client, internal}. Matches HVAC pattern."""
     logger.info("node_generate_summary [plumbing]")
 
     context = {
@@ -352,71 +316,53 @@ def node_generate_summary(state: dict) -> dict:
         "location":        state.get("location"),
         "has_water_damage":state.get("has_water_damage"),
         "urgency":         state.get("urgency"),
-        "is_homeowner":    state.get("is_homeowner"),
-        "property_type":   state.get("property_type"),
-        "appt_confirmed":  state.get("appt_confirmed"),
+        "appt":            state.get("appt_confirmed"),
         "score":           state.get("score"),
-        "score_reason":    state.get("score_reason"),
     }
-    context_str = json.dumps(context, default=str)
 
-    # Client summary
     try:
-        response = llm.invoke([
-            SystemMessage(content=SUMMARY_CLIENT_SYSTEM),
-            HumanMessage(content=context_str),
-        ], num_predict=250, temperature=0.5)
-        state["summary"] = response.content.strip()
-    except Exception as e:
-        logger.error(f"node_generate_summary (client) [plumbing] failed: {e}")
-        appt = state.get("appt_confirmed", "to be scheduled")
+        resp   = llm.invoke(
+            [
+                SystemMessage(content=SUMMARY_COMBINED_SYSTEM),
+                HumanMessage(content=json.dumps(context)),
+            ],
+            max_tokens=300,
+            temperature=0.3,
+        )
+        result = parse_json(resp.content)
+        if result:
+            state["summary"]          = result.get("client")
+            state["internal_summary"] = result.get("internal")
+    except Exception as exc:
+        logger.error(f"summary failed [plumbing]: {exc}")
+        is_emerg   = _is_emergency(state)
+        appt_line  = "A plumber is being dispatched now." if is_emerg else f"Appointment: {state.get('appt_confirmed', 'to be scheduled')}."
         state["summary"] = (
             f"We discussed your {state.get('issue', 'plumbing issue')} "
-            f"in {state.get('location', 'your area')}. "
-            f"{'A plumber is being dispatched now.' if _is_emergency(state) else f'Appointment: {appt}.'}"
+            f"in {state.get('location', 'your area')}. {appt_line}"
         )
-
-    # Internal summary
-    try:
-        response = llm.invoke([
-            SystemMessage(content=SUMMARY_INTERNAL_SYSTEM),
-            HumanMessage(content=context_str),
-        ], num_predict=150, temperature=0.3)
-        state["internal_summary"] = response.content.strip()
-    except Exception as e:
-        logger.error(f"node_generate_summary (internal) [plumbing] failed: {e}")
         state["internal_summary"] = (
-            f"{'EMERGENCY' if _is_emergency(state) else state.get('urgency', 'routine').upper()} "
-            f"{(state.get('score') or '').upper()} - "
-            f"Issue: {state.get('issue')} | Reason: {state.get('score_reason')}"
+            f"{'EMERGENCY ' if is_emerg else ''}"
+            f"{(state.get('score') or 'warm').upper()} - "
+            f"Issue: {state.get('issue')} | {state.get('score_reason')}"
         )
 
     return state
 
 
 def node_send_email(state: dict) -> dict:
-    """
-    Sends confirmation email.
-    Emergency: confirms dispatch + shutoff reminder.
-    Routine: confirms appointment.
-    """
-    logger.info("node_send_email [plumbing]")
-
     if not state.get("email"):
-        logger.info("No email — skipping")
         return state
 
     try:
-        name       = state.get("name", "there")
-        is_emerg   = _is_emergency(state)
+        name     = state.get("name", "there")
+        is_emerg = _is_emergency(state)
 
         if is_emerg:
             action_section = f"""
             <div style="background:#fef2f2;border:1px solid #fca5a5;
                         border-radius:8px;padding:16px;margin:16px 0;">
-                <h3 style="margin:0 0 8px;color:#991b1b;">
-                    Emergency Dispatch Confirmed
-                </h3>
+                <h3 style="margin:0 0 8px;color:#991b1b;">Emergency Dispatch Confirmed</h3>
                 <p style="margin:4px 0;font-size:15px;font-weight:600;">
                     A plumber is on the way to {state.get("location", "your location")}.
                 </p>
@@ -433,12 +379,8 @@ def node_send_email(state: dict) -> dict:
             action_section = f"""
             <div style="background:#f0fdf4;border:1px solid #86efac;
                         border-radius:8px;padding:16px;margin:16px 0;">
-                <h3 style="margin:0 0 8px;color:#166534;">
-                    Appointment Confirmed
-                </h3>
-                <p style="margin:4px 0;font-size:16px;font-weight:600;">
-                    {state["appt_confirmed"]}
-                </p>
+                <h3 style="margin:0 0 8px;color:#166534;">Appointment Confirmed</h3>
+                <p style="margin:4px 0;font-size:16px;font-weight:600;">{state["appt_confirmed"]}</p>
                 <p style="margin:4px 0;color:#555;">
                     Our plumber calls 20 minutes before arrival.
                     No work begins without your approval and a full quote.
@@ -449,11 +391,7 @@ def node_send_email(state: dict) -> dict:
             action_section = f"""
             <div style="background:#fefce8;border:1px solid #fde047;
                         border-radius:8px;padding:16px;margin:16px 0;">
-                <p style="margin:0;">
-                    Reply to this email or call
-                    <strong>{settings.BUSINESS_PHONE}</strong>
-                    to schedule your visit.
-                </p>
+                <p style="margin:0;">Reply or call <strong>{settings.BUSINESS_PHONE}</strong> to schedule.</p>
             </div>
             """
 
@@ -464,10 +402,8 @@ def node_send_email(state: dict) -> dict:
         )
 
         html_body = f"""
-        <!DOCTYPE html>
-        <html>
-        <body style="font-family:sans-serif;max-width:600px;
-                     margin:0 auto;padding:24px;color:#1a1a1a;">
+        <!DOCTYPE html><html>
+        <body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a;">
             <h2 style="color:#0D1B2A;">
                 {"Emergency Plumbing Response" if is_emerg else "Plumbing Appointment Summary"}
             </h2>
@@ -479,8 +415,7 @@ def node_send_email(state: dict) -> dict:
                 Questions? Call <strong>{settings.BUSINESS_PHONE}</strong>.<br>
                 automedge Plumbing Team
             </p>
-        </body>
-        </html>
+        </body></html>
         """
 
         result = email_tool.send_email(
@@ -490,63 +425,53 @@ def node_send_email(state: dict) -> dict:
             from_name="automedge Plumbing",
         )
         state["email_sent"] = result.get("status") == "sent"
-        logger.info(f"Email sent={state['email_sent']} to {state['email']}")
+        logger.info(f"email sent={state['email_sent']} to {state['email']} [plumbing]")
 
-    except Exception as e:
-        logger.error(f"node_send_email [plumbing] failed: {e}")
+    except Exception as exc:
+        logger.error(f"email failed [plumbing]: {exc}")
         state["email_sent"] = False
 
     return state
 
 
 def node_save_sheets(state: dict) -> dict:
-    """Saves lead to correct Google Sheet tab."""
-    logger.info("node_save_sheets [plumbing]")
-
-    TAB_MAP = {"hot": "Hot Leads", "warm": "Warm Leads", "cold": "Cold Leads"}
-
     try:
         score = state.get("score", "warm")
-
         row = [
-            datetime.now().isoformat(),                      # A Timestamp
-            state.get("name") or "",                         # B Name
-            state.get("email") or "",                        # C Email
-            state.get("phone") or "",                        # D Phone
-            state.get("location") or "",                     # E Location
-            state.get("issue") or "",                        # F Issue
-            state.get("issue_type") or "",                   # G Issue Type
-            state.get("problem_area") or "",                 # H Problem Area
-            state.get("duration") or "",                     # I Duration
-            str(state.get("is_getting_worse") or ""),        # J Getting Worse
-            str(state.get("has_water_damage") or ""),        # K Water Damage
-            str(state.get("main_shutoff_off") or ""),        # L Shutoff Off
-            state.get("property_type") or "",                # M Property Type
-            str(state.get("is_homeowner") or ""),            # N Homeowner
-            state.get("urgency") or "",                      # O Urgency
-            score.upper(),                                   # P Score
-            str(state.get("score_number") or ""),            # Q Score Number
-            state.get("score_reason") or "",                 # R Score Reason
-            str(state.get("appt_booked", False)),            # S Appt Booked
-            state.get("appt_confirmed") or "",               # T Appt DateTime
-            str(state.get("sms_sent", False)),               # U SMS Sent
-            str(state.get("email_sent", False)),             # V Email Sent
-            str(state.get("turn_count", 0)),                 # W Chat Turns
-            state.get("internal_summary") or "",             # X Internal Summary
-            state.get("session_id") or "",                   # Y Session ID
+            datetime.utcnow().isoformat(),
+            state.get("name") or "",
+            state.get("email") or "",
+            state.get("phone") or "",
+            state.get("location") or "",
+            state.get("issue") or "",
+            state.get("issue_type") or "",
+            state.get("problem_area") or "",
+            state.get("duration") or "",
+            str(state.get("is_getting_worse") or ""),
+            str(state.get("has_water_damage") or ""),
+            str(state.get("main_shutoff_off") or ""),
+            state.get("property_type") or "",
+            str(state.get("is_homeowner") or ""),
+            state.get("urgency") or "",
+            score.upper(),
+            str(state.get("score_number") or ""),
+            state.get("score_reason") or "",
+            str(state.get("appt_booked", False)),
+            state.get("appt_confirmed") or "",
+            str(state.get("sms_sent", False)),
+            str(state.get("email_sent", False)),
+            str(state.get("turn_count", 0)),
+            state.get("internal_summary") or "",
+            state.get("session_id") or "",
         ]
-
         row_num = sheets_tool.save_lead_to_sheet(
             score=score,
             row=row,
             sheet_id=settings.PLUMBING_SHEET_ID,
         )
-
         state["sheet_row"] = row_num
-        state["sheet_tab"] = TAB_MAP.get(score, "Warm Leads")
-        logger.info(f"Saved: tab={state['sheet_tab']} row={row_num}")
-
-    except Exception as e:
-        logger.error(f"node_save_sheets [plumbing] failed: {e}")
+        logger.info(f"sheets saved row={row_num} [plumbing]")
+    except Exception as exc:
+        logger.error(f"sheets save failed [plumbing]: {exc}")
 
     return state

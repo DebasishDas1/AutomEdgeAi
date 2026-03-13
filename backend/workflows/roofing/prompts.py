@@ -376,3 +376,52 @@ SMS_INSURANCE_REMINDER = (
 SMS_REVIEW_REQUEST = (
     "Hi {name}, thanks for choosing us for your roofing project! A quick Google review helps homeowners find us: {review_url} Reply STOP to opt out."
 )
+# ══════════════════════════════════════════════════════════════════════════════
+# SUMMARY — replaced URGENCY_CLASSIFY_SYSTEM and LEAD_SCORING_SYSTEM
+# Both are now handled by rule_score_lead() in workflows/base.py (zero LLM tokens)
+# ══════════════════════════════════════════════════════════════════════════════
+
+SUMMARY_COMBINED_SYSTEM = """Generate two summaries from the roofing lead JSON.
+
+Return ONLY JSON with two keys:
+
+{
+"client": "...",
+"internal": "..."
+}
+
+CLIENT SUMMARY
+2-3 sentences for customer email.
+Second person voice ("You mentioned…").
+Include damage_type, location if known, appointment if booked.
+Note urgency=storm_damage for insurance leads — highest ticket value.
+Never mention lead score or internal info.
+Start with "Hi [name]," if name exists.
+
+INTERNAL SUMMARY
+1-2 sentence sales note for the service team.
+Start with score prefix:
+
+HOT -
+WARM -
+COLD -
+
+Flag INSURANCE and COMMERCIAL signals. Include damage_type and insurance status.
+Suggested next action.
+"""
+
+# Compatibility aliases
+SUMMARY_CLIENT_SYSTEM   = SUMMARY_COMBINED_SYSTEM
+SUMMARY_INTERNAL_SYSTEM = SUMMARY_COMBINED_SYSTEM
+
+SMS_INSPECTION_CONFIRM = (
+    "Hi {name}! Your free roof inspection is confirmed: {appt_datetime}. Inspector calls 30 min before arrival and will send you a photo report. Questions? Call {business_phone}. Reply STOP to opt out."
+)
+
+SMS_INSURANCE_REMINDER = (
+    "Hi {name}, reminder: your roof inspection is {appt_datetime}. If you have not yet, locate your homeowners insurance policy number to have ready. Our inspector will help you through the claim process. Reply STOP to opt out."
+)
+
+SMS_REVIEW_REQUEST = (
+    "Hi {name}, thanks for choosing us for your roofing project! A quick Google review helps homeowners find us: {review_url} Reply STOP to opt out."
+)

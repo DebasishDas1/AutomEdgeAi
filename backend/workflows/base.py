@@ -1,17 +1,6 @@
 # workflows/base.py
 # Shared helpers used by ALL vertical nodes.
-# Import from here instead of redefining in each vertical's nodes.py.
-#
-# What lives here:
-#   - State helpers (_field_missing, _merge_extracted, etc.)
-#   - LangChain message conversion
-#   - Appointment slot generation
-#   - _parse_json_from_llm
-#   - rule_score_lead  ← replaces the 607-token LLM scoring call
-#
-# What does NOT live here:
-#   - Tool imports (sheets/sms/review) — import lazily in the node that needs them
-#   - LeadState TypedDict — removed (use ChatState from workflows/state.py)
+# Import from here — never redefine in individual nodes.py files.
 import json
 import logging
 from datetime import datetime, timedelta
@@ -19,7 +8,7 @@ from datetime import datetime, timedelta
 from langchain_core.messages import HumanMessage, AIMessage
 
 logger   = logging.getLogger(__name__)
-_MISSING = object()   # sentinel: distinguishes None from "never set"
+_MISSING = object()
 
 
 # ── Field helpers ─────────────────────────────────────────────────────────────
@@ -31,10 +20,7 @@ def field_missing(state: dict, key: str) -> bool:
 
 
 def merge_extracted(state: dict, extracted: dict) -> dict:
-    """
-    Merge LLM-extracted fields into state.
-    First-capture wins — never overwrites an already-set value.
-    """
+    """Merge LLM-extracted fields into state. First-capture wins."""
     for k, v in extracted.items():
         if v is None:
             continue
@@ -102,55 +88,132 @@ def get_appt_slots() -> list[str]:
 
 
 # ── Rule-based lead scorer ────────────────────────────────────────────────────
-# Replaces the 607-token LEAD_SCORING_SYSTEM LLM call with deterministic logic.
-# Saves ~750 tokens per post-chat run. Scores are consistent and debuggable.
+# Replaces URGENCY_CLASSIFY_SYSTEM + LEAD_SCORING_SYSTEM LLM calls (~450 tokens)
+# in pest/plumbing/roofing with deterministic, zero-token logic.
+# Each vertical has its own keyword sets and signals.
 
-_EMERGENCY_KEYWORDS = {
-    "no heat", "no ac", "carbon monoxide", "gas smell", "flooding",
-    "water damage", "burst pipe", "smoke", "fire", "no hot water",
+_EMERGENCY_HVAC = {
+    "no heat", "no ac", "carbon monoxide", "gas smell",
+    "smoke", "no hot water", "system down",
 }
+_EMERGENCY_PLUMBING = {
+    "flooding", "water damage", "burst pipe", "burst", "overflow",
+    "sewage", "sewer backup", "no water", "water everywhere",
+}
+_EMERGENCY_PEST = {
+    "termites", "bed bugs", "rodents", "cockroaches", "wasps",
+    "bees", "hornets", "rat", "rats", "mice",
+}
+_EMERGENCY_ROOFING = {
+    "active leak", "ceiling leak", "water coming in", "interior leak",
+    "storm damage", "missing shingles", "collapsed",
+}
+
 
 def rule_score_lead(state: dict) -> dict:
     """
-    Score a lead without an LLM call.
-    Returns {"score": "hot"|"warm"|"cold", "score_number": int, "score_reason": str}
+    Score a lead with zero LLM tokens.
+    Handles all 4 verticals via state['vertical'].
+    Returns {"score": "hot"|"warm"|"cold", "score_number": int, "score_reason": str,
+             "urgency": str}  ← urgency is set here too, replacing node_score_urgency
     """
-    urgency        = (state.get("urgency") or "").lower()
-    is_homeowner   = state.get("is_homeowner")
-    has_email      = bool(state.get("email"))
-    has_phone      = bool(state.get("phone"))
-    appt_booked    = bool(state.get("appt_booked"))
-    turn_count     = int(state.get("turn_count") or 0)
-    issue          = (state.get("issue") or "").lower()
-    budget_signal  = (state.get("budget_signal") or "").lower()
+    vertical      = (state.get("vertical") or "hvac").lower()
+    urgency_raw   = (state.get("urgency") or "").lower()
+    is_homeowner  = state.get("is_homeowner")
+    has_email     = bool(state.get("email"))
+    has_phone     = bool(state.get("phone"))
+    appt_booked   = bool(state.get("appt_booked"))
+    turn_count    = int(state.get("turn_count") or 0)
+    issue         = (state.get("issue") or "").lower()
+    budget_signal = (state.get("budget_signal") or "").lower()
 
-    score  = 50   # base
-    notes  = []
+    score = 50
+    notes = []
 
-    # ── Positive signals ──────────────────────────────────────────────────────
-    emergency = urgency == "urgent" or any(kw in issue for kw in _EMERGENCY_KEYWORDS)
-    if emergency:           score += 25; notes.append("emergency")
-    if is_homeowner:        score += 10; notes.append("homeowner")
-    if has_email:           score +=  5; notes.append("email")
-    if has_phone:           score +=  5; notes.append("phone")
-    if appt_booked:         score += 15; notes.append("appt booked")
-    if turn_count >= 6:     score +=  5; notes.append(f"{turn_count} turns")
-    if urgency == "this week": score += 5; notes.append("this week")
+    # ── Vertical-specific emergency detection ─────────────────────────────────
+    if vertical == "hvac":
+        emergency = urgency_raw in ("urgent", "emergency") or any(
+            kw in issue for kw in _EMERGENCY_HVAC
+        )
+        urgency_out = "urgent" if emergency else (urgency_raw or "normal")
 
-    # ── Negative signals ──────────────────────────────────────────────────────
+    elif vertical == "plumbing":
+        emergency = urgency_raw == "emergency" or any(
+            kw in issue for kw in _EMERGENCY_PLUMBING
+        )
+        has_water_damage = bool(state.get("has_water_damage"))
+        if emergency or has_water_damage:
+            urgency_out = "emergency"
+            score += 10  # extra for plumbing emergency severity
+        elif urgency_raw == "urgent":
+            urgency_out = "urgent"
+        else:
+            urgency_out = "routine"
+
+    elif vertical == "pest_control":
+        pest = (state.get("pest_type") or "").lower()
+        has_damage = bool(state.get("has_damage"))
+        if pest in _EMERGENCY_PEST or has_damage:
+            urgency_out = "high"
+            emergency   = True
+        elif pest in {"ants", "fleas", "mosquitoes"}:
+            urgency_out = "medium"
+            emergency   = False
+        else:
+            urgency_out = "low"
+            emergency   = False
+
+    elif vertical == "roofing":
+        damage_type = (state.get("damage_type") or "").lower()
+        has_interior_leak = bool(state.get("has_interior_leak"))
+        if damage_type == "storm" or has_interior_leak or any(
+            kw in issue for kw in _EMERGENCY_ROOFING
+        ):
+            urgency_out = "storm_damage" if damage_type == "storm" else "leak_active"
+            emergency   = True
+        elif damage_type == "wear":
+            urgency_out = "inspection_needed"
+            emergency   = False
+        else:
+            urgency_out = "planning"
+            emergency   = False
+
+    else:
+        emergency   = urgency_raw in ("urgent", "emergency")
+        urgency_out = urgency_raw or "normal"
+
+    # ── Universal scoring signals ─────────────────────────────────────────────
+    if emergency:         score += 25; notes.append("emergency")
+    if is_homeowner:      score += 10; notes.append("homeowner")
+    if has_email:         score +=  5; notes.append("email")
+    if has_phone:         score +=  5; notes.append("phone")
+    if appt_booked:       score += 15; notes.append("appt booked")
+    if turn_count >= 6:   score +=  5; notes.append(f"{turn_count} turns")
+
+    # Vertical-specific bonuses
+    if vertical == "pest_control" and state.get("wants_annual"):
+        score += 10; notes.append("wants annual plan")
+    if vertical == "roofing" and state.get("has_insurance"):
+        score +=  8; notes.append("has insurance")
+    if vertical == "plumbing" and state.get("has_water_damage"):
+        score += 10; notes.append("water damage")
+
+    # Negative signals
     if budget_signal == "price shopping": score -= 20; notes.append("price shopping")
     if is_homeowner is False:             score -= 25; notes.append("renter")
     if not has_email and not has_phone:   score -= 15; notes.append("no contact")
-    if turn_count < 3:                   score -= 10; notes.append("low engagement")
+    if turn_count < 3:                    score -= 10; notes.append("low engagement")
 
     score = max(0, min(100, score))
 
-    if score >= 70:
-        label = "hot"
-    elif score >= 35:
-        label = "warm"
-    else:
-        label = "cold"
+    if score >= 70:   label = "hot"
+    elif score >= 35: label = "warm"
+    else:             label = "cold"
 
     reason = f"{label.upper()}: {', '.join(notes) if notes else 'standard lead'}."
-    return {"score": label, "score_number": score, "score_reason": reason}
+    return {
+        "score":        label,
+        "score_number": score,
+        "score_reason": reason,
+        "urgency":      urgency_out,
+    }

@@ -364,3 +364,52 @@ SMS_APPOINTMENT_CONFIRM = (
 SMS_REVIEW_REQUEST = (
     "Hi {name}, thanks for choosing us for your plumbing! A quick Google review helps homeowners find us: {review_url} Reply STOP to opt out."
 )
+# ══════════════════════════════════════════════════════════════════════════════
+# SUMMARY — replaced URGENCY_CLASSIFY_SYSTEM and LEAD_SCORING_SYSTEM
+# Both are now handled by rule_score_lead() in workflows/base.py (zero LLM tokens)
+# ══════════════════════════════════════════════════════════════════════════════
+
+SUMMARY_COMBINED_SYSTEM = """Generate two summaries from the plumbing lead JSON.
+
+Return ONLY JSON with two keys:
+
+{
+"client": "...",
+"internal": "..."
+}
+
+CLIENT SUMMARY
+2-3 sentences for customer email.
+Second person voice ("You mentioned…").
+Include issue/issue_type, location if known, appointment if booked.
+Note urgency=emergency for burst pipes, flooding, sewage backup.
+Never mention lead score or internal info.
+Start with "Hi [name]," if name exists.
+
+INTERNAL SUMMARY
+1-2 sentence sales note for the service team.
+Start with score prefix:
+
+HOT -
+WARM -
+COLD -
+
+Flag EMERGENCY clearly if urgency=emergency. Include issue_type and water damage signal.
+Suggested next action.
+"""
+
+# Compatibility aliases
+SUMMARY_CLIENT_SYSTEM   = SUMMARY_COMBINED_SYSTEM
+SUMMARY_INTERNAL_SYSTEM = SUMMARY_COMBINED_SYSTEM
+
+SMS_EMERGENCY_DISPATCH = (
+    "Hi {name}! Emergency plumbing call received. Dispatching a plumber to {location} now. Expect a call within 15 minutes. Keep main shutoff OFF until they arrive. {business_phone}"
+)
+
+SMS_APPOINTMENT_CONFIRM = (
+    "Hi {name}! Your plumbing appointment is confirmed: {appt_datetime}. Our plumber calls 20 min before arrival. Questions? Call {business_phone}. Reply STOP to opt out."
+)
+
+SMS_REVIEW_REQUEST = (
+    "Hi {name}, thanks for choosing us for your plumbing! A quick Google review helps homeowners find us: {review_url} Reply STOP to opt out."
+)

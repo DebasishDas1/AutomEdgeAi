@@ -1,26 +1,34 @@
 # workflows/roofing/nodes.py
-# Roofing-specific nodes.
-# Key difference from all other verticals:
-#   storm + insurance path changes scoring, email content, and SMS templates.
-#   Commercial properties are auto-priority (multiple units = multiple jobs).
-#   Urgency = storm_damage|leak_active|inspection_needed|planning (not high/medium/low).
+# Optimized to match HVAC pattern:
+#   - All helpers imported from workflows.base
+#   - llm.invoke() throughout
+#   - rule_score_lead() replaces URGENCY_CLASSIFY_SYSTEM + LEAD_SCORING_SYSTEM
+#   - SUMMARY_COMBINED_SYSTEM: 1 call → JSON {client, internal}
+#   - Insurance SMS + commercial signals preserved
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import SystemMessage, HumanMessage
 
 from llm import llm
 from core.config import settings
+from workflows.base import (
+    field_missing,
+    merge_extracted,
+    parse_json,
+    build_lc_messages,
+    last_user_msg,
+    full_transcript,
+    get_appt_slots,
+    rule_score_lead,
+)
 from workflows.roofing.prompts import (
     ROOFING_EXPERT_SYSTEM,
     FIELD_COLLECTION_GUIDE,
     EXTRACT_FIELDS_SYSTEM,
     APPOINTMENT_CONFIRM_SYSTEM,
-    URGENCY_CLASSIFY_SYSTEM,
-    LEAD_SCORING_SYSTEM,
-    SUMMARY_CLIENT_SYSTEM,
-    SUMMARY_INTERNAL_SYSTEM,
+    SUMMARY_COMBINED_SYSTEM,
     SMS_INSPECTION_CONFIRM,
     SMS_INSURANCE_REMINDER,
 )
@@ -30,139 +38,180 @@ from tools.sms import sms_tool
 
 logger = logging.getLogger(__name__)
 
+_REQUIRED = ["name", "email", "issue"]
+_SOFT     = ["phone", "location", "damage_type", "has_interior_leak", "is_homeowner"]
+
+_FIELD_PRIORITY = [
+    "issue",
+    "damage_type",
+    "has_interior_leak",
+    "storm_date",
+    "has_insurance",
+    "location",
+    "roof_age",
+    "property_type",
+    "is_homeowner",
+    "name",
+    "phone",
+    "email",
+]
+
+_CONFIRM_SIGNALS = {
+    "option", "number", "slot", "works", "perfect", "great", "sure",
+    "yes", "sounds good", "lets do", "that one", "morning", "afternoon",
+    "pm", "am", "monday", "tuesday", "wednesday", "thursday",
+    "friday", "saturday", "sunday", "tomorrow",
+}
+
+_GOODBYE_SIGNALS = {
+    "bye", "goodbye", "thanks", "thank you", "done",
+    "never mind", "all good",
+}
+
+
+def _is_storm_insurance_lead(state: dict) -> bool:
+    return (
+        state.get("damage_type") == "storm"
+        and state.get("has_insurance") is True
+    )
+
+
+def _is_commercial(state: dict) -> bool:
+    return (state.get("property_type") or "").lower() in {"commercial", "multi-unit", "apartment"}
+
+
+def _looks_like_confirmation(text: str) -> bool:
+    return any(sig in text.lower() for sig in _CONFIRM_SIGNALS)
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CHAT GRAPH NODES
 # ══════════════════════════════════════════════════════════════════════════════
 
+def node_extract_fields(state: dict) -> dict:
+    msg = last_user_msg(state)
+    if not msg:
+        return state
+
+    try:
+        resp = llm.invoke(
+            [
+                SystemMessage(content=EXTRACT_FIELDS_SYSTEM),
+                HumanMessage(content=msg),
+            ],
+            max_tokens=180,
+            temperature=0,
+        )
+        extracted = parse_json(resp.content)
+        if extracted:
+            # Map damage_type → issue for base state compatibility
+            if extracted.get("damage_type") and field_missing(state, "issue"):
+                extracted["issue"] = extracted["damage_type"]
+            merge_extracted(state, extracted)
+    except Exception as exc:
+        logger.error(f"field extraction failed [roofing]: {exc}")
+
+    # Appointment confirmation
+    if (
+        state.get("appt_slots")
+        and not state.get("appt_booked")
+        and _looks_like_confirmation(msg)
+    ):
+        try:
+            slots = "\n".join(f"{i+1}. {s}" for i, s in enumerate(state["appt_slots"]))
+            resp  = llm.invoke(
+                [
+                    SystemMessage(content=APPOINTMENT_CONFIRM_SYSTEM),
+                    HumanMessage(content=f"{slots}\n\nUser: {msg}"),
+                ],
+                max_tokens=50,
+                temperature=0,
+            )
+            confirm = parse_json(resp.content)
+            if confirm and confirm.get("confirmed"):
+                idx = max(0, min(int(confirm.get("slot_index", 0)), len(state["appt_slots"]) - 1))
+                state["appt_booked"]    = True
+                state["appt_confirmed"] = state["appt_slots"][idx]
+                logger.info(f"appointment booked [roofing]: {state['appt_confirmed']}")
+        except Exception as exc:
+            logger.error(f"appointment confirm failed [roofing]: {exc}")
+
+    return state
+
+
 def node_check_complete(state: dict) -> dict:
-    """
-    Complete when all required fields collected + appointment booked.
-    Roofing has no emergency dispatch — inspection is always the next step.
-    """
-    logger.info("node_check_complete [roofing]")
+    if state.get("is_complete"):
+        return state
 
-    required = ["name", "email", "phone", "damage_type", "location"]
-    has_all  = all(not _field_missing(state, f) for f in required)
+    has_required = all(not field_missing(state, f) for f in _REQUIRED)
 
-    if has_all and state.get("appt_booked"):
-        logger.info("Complete: all roofing fields + inspection booked")
+    if has_required and state.get("appt_booked"):
         state["is_complete"] = True
         return state
 
-    last_user = _last_user_message(state)
-    if last_user:
-        end_signals = ["bye", "thanks", "goodbye", "done", "no thanks", "never mind"]
-        if any(s in last_user.lower() for s in end_signals):
-            logger.info("Complete: goodbye signal")
-            state["is_complete"] = True
+    if has_required and not field_missing(state, "name") and state.get("turn_count", 0) >= 3:
+        state["is_complete"] = True
+        return state
+
+    msg = last_user_msg(state)
+    if msg and any(sig in msg.lower() for sig in _GOODBYE_SIGNALS):
+        state["is_complete"] = True
 
     return state
 
 
 def node_chat_reply(state: dict) -> dict:
-    """
-    Generates Jordan's reply.
-    Storm path: introduces insurance assistance after slot confirmation.
-    Commercial: prioritizes scope and multiple-unit details.
-    """
-    logger.info("node_chat_reply [roofing]")
     try:
         if not state.get("appt_slots"):
-            state["appt_slots"] = get_appointment_slots()
+            state["appt_slots"] = get_appt_slots()
 
-        slots       = state["appt_slots"]
-        damage_type = state.get("damage_type", "unknown")
+        slots = state["appt_slots"]
 
-        sys_msg = ROOFING_EXPERT_SYSTEM
-        sys_msg = sys_msg.replace("{slot_1}", slots[0])
-        sys_msg = sys_msg.replace("{slot_2}", slots[1])
-        sys_msg = sys_msg.replace("{slot_3}", slots[2])
-
-        collected = {
-            k: state.get(k)
-            for k in [
-                "name", "email", "phone", "location",
-                "damage_type", "damage_detail", "storm_date",
-                "roof_age", "has_insurance", "insurance_contacted",
-                "adjuster_involved", "has_interior_leak",
-                "is_homeowner", "property_type",
-            ]
-        }
-        missing = [k for k, v in collected.items() if v is None]
-        guide = FIELD_COLLECTION_GUIDE.format(
-            current_state=json.dumps(collected, default=str),
-            missing_fields=", ".join(missing) if missing else "none",
-            damage_type=damage_type,
+        sys_msg = (
+            ROOFING_EXPERT_SYSTEM
+            .replace("{slot_1}", slots[0])
+            .replace("{slot_2}", slots[1])
+            .replace("{slot_3}", slots[2])
         )
 
-        messages = [SystemMessage(content=sys_msg + "\n\n" + guide)]
-        messages += _build_chat_messages(state)
+        all_fields = _REQUIRED + _SOFT
+        collected  = {k: state.get(k) for k in all_fields}
+        have       = {k: v for k, v in collected.items() if v is not None}
+        missing    = {k for k, v in collected.items() if v is None}
+        next_field = next((f for f in _FIELD_PRIORITY if f in missing), "none")
 
-        response = llm.invoke(messages, num_predict=300, temperature=0.7)
-        reply    = response.content.strip()
+        has_required = all(not field_missing(state, f) for f in _REQUIRED)
+        phase = (
+            "CONFIRM"  if state.get("appt_booked") else
+            "OFFER"    if has_required              else
+            "DIAGNOSE"
+        )
 
-        state.setdefault("messages", []).append({
-            "role":    "assistant",
-            "content": reply,
-            "ts":      datetime.now().isoformat(),
-        })
-        state["turn_count"] = state.get("turn_count", 0) + 1
+        guide = FIELD_COLLECTION_GUIDE.format(
+            phase=phase,
+            next_field=next_field,
+            appt_confirmed=state.get("appt_confirmed") or "none",
+            collected=json.dumps(have),
+            collected_count=len(have),
+            total_count=len(all_fields),
+        )
 
-    except Exception as e:
-        logger.error(f"node_chat_reply [roofing] failed: {e}")
-        state.setdefault("messages", []).append({
-            "role":    "assistant",
-            "content": "Sorry, I had a brief issue. Could you repeat that?",
-            "ts":      datetime.now().isoformat(),
-        })
+        messages = [SystemMessage(content=sys_msg + "\n" + guide)]
+        messages += build_lc_messages(state)
 
-    return state
+        resp  = llm.invoke(messages, max_tokens=250, temperature=0.7)
+        reply = resp.content.strip()
 
+    except Exception as exc:
+        logger.error(f"chat reply failed [roofing]: {exc}")
+        reply = "Sorry, something went wrong. Could you repeat that?"
 
-def node_extract_fields(state: dict) -> dict:
-    """
-    Extracts roofing-specific fields from latest user message.
-    Tracks insurance signals as first-class fields.
-    """
-    logger.info("node_extract_fields [roofing]")
-    try:
-        last_user = _last_user_message(state)
-        if not last_user:
-            return state
-
-        response  = llm.invoke([
-            SystemMessage(content=EXTRACT_FIELDS_SYSTEM),
-            HumanMessage(content=last_user),
-        ], num_predict=300, temperature=0)
-
-        extracted = _parse_json_from_llm(response.content)
-        if extracted:
-            state = _merge_extracted(state, extracted)
-
-        # Appointment confirmation
-        if state.get("appt_slots") and not state.get("appt_booked"):
-            slots_str = "\n".join(
-                f"{i+1}. {s}" for i, s in enumerate(state["appt_slots"])
-            )
-            confirm_response = llm.invoke([
-                SystemMessage(content=APPOINTMENT_CONFIRM_SYSTEM),
-                HumanMessage(
-                    content=f"Available slots:\n{slots_str}\n\nUser message: {last_user}"
-                ),
-            ], num_predict=80, temperature=0)
-
-            confirm = _parse_json_from_llm(confirm_response.content)
-            if confirm and confirm.get("confirmed"):
-                idx = confirm.get("slot_index", 0)
-                idx = idx if 0 <= idx < len(state["appt_slots"]) else 0
-                state["appt_booked"]    = True
-                state["appt_confirmed"] = state["appt_slots"][idx]
-                logger.info(f"Inspection booked: {state['appt_confirmed']}")
-
-    except Exception as e:
-        logger.error(f"node_extract_fields [roofing] failed: {e}")
-
+    state.setdefault("messages", []).append({
+        "role":    "assistant",
+        "content": reply,
+        "ts":      datetime.utcnow().isoformat(),
+    })
+    state["turn_count"] = state.get("turn_count", 0) + 1
     return state
 
 
@@ -171,89 +220,65 @@ def node_extract_fields(state: dict) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def node_extract_final(state: dict) -> dict:
-    """Final extraction pass over full transcript."""
-    logger.info("node_extract_final [roofing]")
+    missing = [f for f in _REQUIRED if field_missing(state, f)]
+    if not missing:
+        return state
+
     try:
-        transcript = _full_transcript(state)
-        if not transcript:
-            return state
-
-        response  = llm.invoke([
-            SystemMessage(content=EXTRACT_FIELDS_SYSTEM),
-            HumanMessage(content=transcript),
-        ], num_predict=350, temperature=0)
-
-        extracted = _parse_json_from_llm(response.content)
+        resp = llm.invoke(
+            [
+                SystemMessage(content=EXTRACT_FIELDS_SYSTEM),
+                HumanMessage(content=full_transcript(state)),
+            ],
+            max_tokens=200,
+            temperature=0,
+        )
+        extracted = parse_json(resp.content)
         if extracted:
-            state = _merge_extracted(state, extracted)
-
-    except Exception as e:
-        logger.error(f"node_extract_final [roofing] failed: {e}")
+            if extracted.get("damage_type") and field_missing(state, "issue"):
+                extracted["issue"] = extracted["damage_type"]
+            merge_extracted(state, extracted)
+    except Exception as exc:
+        logger.error(f"final extraction failed [roofing]: {exc}")
 
     return state
 
 
 def node_score_urgency(state: dict) -> dict:
     """
-    Classifies roofing urgency as storm_damage|leak_active|inspection_needed|planning.
-    Storm claims have insurance filing deadlines — time-critical even without active damage.
+    Rule-based urgency + scoring (zero LLM tokens).
+    Replaces URGENCY_CLASSIFY_SYSTEM + LEAD_SCORING_SYSTEM.
+    Storm fast-path: if already flagged during chat, skip to scoring.
     """
     logger.info("node_score_urgency [roofing]")
 
     # Fast path: storm already confirmed during chat
-    if state.get("damage_type") == "storm" and state.get("urgency") == "storm_damage":
-        logger.info("Urgency already classified as storm_damage — skipping LLM")
-        return state
+    if state.get("damage_type") == "storm" and not state.get("urgency"):
+        state["urgency"] = "storm_damage"
+        logger.info("urgency=storm_damage (fast path) [roofing]")
 
-    try:
-        urgency_input = {
-            "damage_type":         state.get("damage_type"),
-            "storm_date":          state.get("storm_date"),
-            "has_interior_leak":   state.get("has_interior_leak"),
-            "insurance_contacted": state.get("insurance_contacted"),
-            "adjuster_involved":   state.get("adjuster_involved"),
-            "roof_age":            state.get("roof_age"),
-            "urgency":             state.get("urgency"),
-        }
-
-        response = llm.invoke([
-            SystemMessage(content=URGENCY_CLASSIFY_SYSTEM),
-            HumanMessage(content=json.dumps(urgency_input)),
-        ], num_predict=100, temperature=0)
-
-        result = _parse_json_from_llm(response.content)
-        if result:
-            urgency = result.get("urgency", "inspection_needed").lower()
-            valid   = {"storm_damage", "leak_active", "inspection_needed", "planning"}
-            state["urgency"] = urgency if urgency in valid else "inspection_needed"
-            logger.info(f"Urgency: {state['urgency']} | {result.get('reason')}")
-        else:
-            # Keyword fallback
-            damage = (state.get("damage_type") or "").lower()
-            state["urgency"] = "storm_damage" if damage == "storm" else "inspection_needed"
-
-    except Exception as e:
-        logger.error(f"node_score_urgency [roofing] failed: {e}")
-        state["urgency"] = "inspection_needed"
-
+    state["vertical"] = "roofing"
+    result = rule_score_lead(state)
+    state.update(result)
+    logger.info(f"scored [roofing]: {result['score']} ({result['score_number']}) urgency={result['urgency']}")
     return state
 
 
 def node_insurance_sms(state: dict) -> dict:
     """
-    Storm + insurance path only.
-    Sends a pre-inspection SMS reminding them to have policy info ready.
-    This is a touchpoint unique to roofing — no other vertical has it.
-    Helps with show rate (homeowner is prepared, feels more committed).
+    Storm + insurance leads only.
+    Pre-inspection SMS: reminds homeowner to have policy number ready.
+    Improves show rate — homeowner is prepared and feels more committed.
+    Unique to roofing; no other vertical has this touchpoint.
     """
     logger.info("node_insurance_sms [roofing]")
 
     if not state.get("phone"):
-        logger.info("No phone for insurance SMS — skipping")
+        logger.info("no phone for insurance SMS [roofing]")
         return state
 
     if not _is_storm_insurance_lead(state):
-        logger.info("Not a storm+insurance lead — skipping insurance SMS")
+        logger.info("not a storm+insurance lead — skipping [roofing]")
         return state
 
     try:
@@ -264,72 +289,26 @@ def node_insurance_sms(state: dict) -> dict:
         )
         result = sms_tool.send_sms(to=state["phone"], body=msg)
         state["sms_sent"] = result.get("status") == "sent"
-        logger.info(f"Insurance reminder SMS sent={state['sms_sent']} to {state['phone']}")
-
-    except Exception as e:
-        logger.error(f"node_insurance_sms [roofing] failed: {e}")
+        logger.info(f"insurance SMS sent={state['sms_sent']} [roofing]")
+    except Exception as exc:
+        logger.error(f"insurance SMS failed [roofing]: {exc}")
         state["sms_sent"] = False
 
     return state
 
 
 def node_score_lead(state: dict) -> dict:
-    """
-    Scores roofing lead with insurance and commercial as primary HOT signals.
-    Storm + insurance = highest ticket of all 4 verticals.
-    """
-    logger.info("node_score_lead [roofing]")
-    try:
-        scoring_input = {
-            "damage_type":         state.get("damage_type"),
-            "urgency":             state.get("urgency"),
-            "is_homeowner":        state.get("is_homeowner"),
-            "has_insurance":       state.get("has_insurance"),
-            "insurance_contacted": state.get("insurance_contacted"),
-            "adjuster_involved":   state.get("adjuster_involved"),
-            "has_interior_leak":   state.get("has_interior_leak"),
-            "property_type":       state.get("property_type"),
-            "roof_age":            state.get("roof_age"),
-            "email":               bool(state.get("email")),
-            "phone":               bool(state.get("phone")),
-            "appt_booked":         state.get("appt_booked"),
-            "turn_count":          state.get("turn_count"),
-        }
-
-        response = llm.invoke([
-            SystemMessage(content=LEAD_SCORING_SYSTEM),
-            HumanMessage(content=json.dumps(scoring_input)),
-        ], num_predict=150, temperature=0)
-
-        result = _parse_json_from_llm(response.content)
-        if result:
-            score = result.get("score", "warm").lower()
-            state["score"]        = score if score in ("hot", "warm", "cold") else "warm"
-            state["score_reason"] = result.get("reason", "")
-            logger.info(f"Lead scored: {state['score']} | {state['score_reason']}")
-        else:
-            # Storm + insurance always HOT even if parsing fails
-            if _is_storm_insurance_lead(state):
-                state["score"]        = "hot"
-                state["score_reason"] = "Storm damage with insurance — auto-scored hot"
-            else:
-                state["score"]        = "warm"
-                state["score_reason"] = "Could not parse scoring output"
-
-    except Exception as e:
-        logger.error(f"node_score_lead [roofing] failed: {e}")
-        state["score"]        = "hot" if _is_storm_insurance_lead(state) else "warm"
-        state["score_reason"] = f"Scoring error: {str(e)}"
-
+    """No-op: scoring done in node_score_urgency. Kept for graph wiring."""
+    logger.info("node_score_lead [roofing] — already scored, skipping")
     return state
 
 
 def node_generate_summary(state: dict) -> dict:
-    """
-    Two summaries: client email + internal Sheets note.
-    Internal note flags insurance involvement and commercial status explicitly.
-    """
+    """Single LLM call → JSON {client, internal}. Matches HVAC pattern."""
     logger.info("node_generate_summary [roofing]")
+
+    is_storm_ins = _is_storm_insurance_lead(state)
+    is_comm      = _is_commercial(state)
 
     context = {
         "name":                state.get("name"),
@@ -337,47 +316,39 @@ def node_generate_summary(state: dict) -> dict:
         "damage_detail":       state.get("damage_detail"),
         "storm_date":          state.get("storm_date"),
         "location":            state.get("location"),
-        "roof_age":            state.get("roof_age"),
         "has_insurance":       state.get("has_insurance"),
-        "insurance_contacted": state.get("insurance_contacted"),
-        "adjuster_involved":   state.get("adjuster_involved"),
         "has_interior_leak":   state.get("has_interior_leak"),
         "property_type":       state.get("property_type"),
-        "appt_confirmed":      state.get("appt_confirmed"),
+        "appt":                state.get("appt_confirmed"),
         "score":               state.get("score"),
-        "score_reason":        state.get("score_reason"),
+        "is_storm_insurance":  is_storm_ins,
+        "is_commercial":       is_comm,
     }
-    context_str = json.dumps(context, default=str)
 
-    # Client summary
     try:
-        response = llm.invoke([
-            SystemMessage(content=SUMMARY_CLIENT_SYSTEM),
-            HumanMessage(content=context_str),
-        ], num_predict=250, temperature=0.5)
-        state["summary"] = response.content.strip()
-    except Exception as e:
-        logger.error(f"node_generate_summary (client) [roofing] failed: {e}")
-        appt = state.get("appt_confirmed", "to be scheduled")
+        resp   = llm.invoke(
+            [
+                SystemMessage(content=SUMMARY_COMBINED_SYSTEM),
+                HumanMessage(content=json.dumps(context)),
+            ],
+            max_tokens=300,
+            temperature=0.3,
+        )
+        result = parse_json(resp.content)
+        if result:
+            state["summary"]          = result.get("client")
+            state["internal_summary"] = result.get("internal")
+    except Exception as exc:
+        logger.error(f"summary failed [roofing]: {exc}")
+        ins_tag  = "INSURANCE " if is_storm_ins else ""
+        comm_tag = "COMMERCIAL " if is_comm else ""
         state["summary"] = (
             f"We discussed your {state.get('damage_type', 'roof')} issue "
             f"in {state.get('location', 'your area')}. "
-            f"Inspection: {appt}."
+            f"Inspection: {state.get('appt_confirmed', 'to be scheduled')}."
         )
-
-    # Internal summary
-    try:
-        response = llm.invoke([
-            SystemMessage(content=SUMMARY_INTERNAL_SYSTEM),
-            HumanMessage(content=context_str),
-        ], num_predict=200, temperature=0.3)
-        state["internal_summary"] = response.content.strip()
-    except Exception as e:
-        logger.error(f"node_generate_summary (internal) [roofing] failed: {e}")
-        ins  = "INSURANCE" if state.get("has_insurance") else ""
-        comm = "COMMERCIAL" if _is_commercial(state) else ""
         state["internal_summary"] = (
-            f"{(state.get('score') or '').upper()} {ins} {comm} - "
+            f"{(state.get('score') or 'warm').upper()} {ins_tag}{comm_tag}- "
             f"{state.get('damage_type')} | {state.get('score_reason')}"
         ).strip()
 
@@ -385,15 +356,7 @@ def node_generate_summary(state: dict) -> dict:
 
 
 def node_send_email(state: dict) -> dict:
-    """
-    Sends inspection confirmation email.
-    Storm + insurance path: includes claim guidance section.
-    Commercial path: mentions multi-unit scope.
-    """
-    logger.info("node_send_email [roofing]")
-
     if not state.get("email"):
-        logger.info("No email — skipping")
         return state
 
     try:
@@ -401,69 +364,50 @@ def node_send_email(state: dict) -> dict:
         is_storm_ins = _is_storm_insurance_lead(state)
         is_comm      = _is_commercial(state)
 
-        if state.get("appt_confirmed"):
-            appt_section = f"""
+        appt_section = (
+            f"""
             <div style="background:#f0fdf4;border:1px solid #86efac;
                         border-radius:8px;padding:16px;margin:16px 0;">
-                <h3 style="margin:0 0 8px;color:#166534;">
-                    Inspection Confirmed
-                </h3>
-                <p style="margin:4px 0;font-size:16px;font-weight:600;">
-                    {state["appt_confirmed"]}
-                </p>
-                <p style="margin:4px 0;color:#555;">
-                    Free roof inspection with full photo documentation.
-                </p>
-                <p style="margin:4px 0;color:#555;">
-                    Our inspector calls 30 minutes before arrival.
-                    No work begins without your approval.
-                </p>
+                <h3 style="margin:0 0 8px;color:#166534;">Inspection Confirmed</h3>
+                <p style="margin:4px 0;font-size:16px;font-weight:600;">{state["appt_confirmed"]}</p>
+                <p style="margin:4px 0;color:#555;">Free roof inspection with full photo documentation.</p>
+                <p style="margin:4px 0;color:#555;">Our inspector calls 30 minutes before arrival. No work begins without your approval.</p>
             </div>
             """
-        else:
-            appt_section = f"""
+            if state.get("appt_confirmed") else
+            f"""
             <div style="background:#fefce8;border:1px solid #fde047;
                         border-radius:8px;padding:16px;margin:16px 0;">
-                <p style="margin:0;">
-                    Reply to this email or call
-                    <strong>{settings.BUSINESS_PHONE}</strong>
-                    to schedule your free inspection.
-                </p>
+                <p style="margin:0;">Reply or call <strong>{settings.BUSINESS_PHONE}</strong> to schedule your free inspection.</p>
             </div>
             """
+        )
 
-        # Insurance guidance — storm leads only
         insurance_section = ""
         if is_storm_ins:
             insurance_section = """
             <div style="background:#eff6ff;border:1px solid #93c5fd;
                         border-radius:8px;padding:16px;margin:16px 0;">
-                <h3 style="margin:0 0 8px;color:#1e40af;">
-                    About Your Insurance Claim
-                </h3>
+                <h3 style="margin:0 0 8px;color:#1e40af;">About Your Insurance Claim</h3>
                 <p style="margin:4px 0;color:#555;">
-                    Our inspector will document all storm damage with photos
-                    and measurements — exactly what your adjuster needs.
-                    We work directly with insurance adjusters and can guide
-                    you through every step of the claims process.
+                    Our inspector will document all storm damage with photos and measurements —
+                    exactly what your adjuster needs. We work directly with insurance adjusters
+                    and can guide you through every step of the claims process.
                 </p>
                 <p style="margin:8px 0 0;color:#555;">
-                    If you have your policy number handy, bring it to the
-                    inspection. It will speed up the process.
+                    If you have your policy number handy, bring it to the inspection.
                 </p>
             </div>
             """
 
-        # Commercial note
         commercial_section = ""
         if is_comm:
             commercial_section = """
             <div style="background:#f5f3ff;border:1px solid #c4b5fd;
                         border-radius:8px;padding:16px;margin:16px 0;">
                 <p style="margin:0;color:#555;">
-                    For commercial properties, our inspector will assess
-                    all roofing sections and provide a comprehensive scope
-                    report before any quote is generated.
+                    For commercial properties, our inspector will assess all roofing sections
+                    and provide a comprehensive scope report before any quote is generated.
                 </p>
             </div>
             """
@@ -475,10 +419,8 @@ def node_send_email(state: dict) -> dict:
         )
 
         html_body = f"""
-        <!DOCTYPE html>
-        <html>
-        <body style="font-family:sans-serif;max-width:600px;
-                     margin:0 auto;padding:24px;color:#1a1a1a;">
+        <!DOCTYPE html><html>
+        <body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a;">
             <h2 style="color:#0D1B2A;">Your Roof Inspection Summary</h2>
             <p>Hi {name},</p>
             <p>{state.get("summary", "Here is a summary of your roof inspection details.")}</p>
@@ -490,8 +432,7 @@ def node_send_email(state: dict) -> dict:
                 Questions? Call <strong>{settings.BUSINESS_PHONE}</strong>.<br>
                 automedge Roofing Team
             </p>
-        </body>
-        </html>
+        </body></html>
         """
 
         result = email_tool.send_email(
@@ -501,64 +442,54 @@ def node_send_email(state: dict) -> dict:
             from_name="automedge Roofing",
         )
         state["email_sent"] = result.get("status") == "sent"
-        logger.info(f"Email sent={state['email_sent']} to {state['email']}")
+        logger.info(f"email sent={state['email_sent']} to {state['email']} [roofing]")
 
-    except Exception as e:
-        logger.error(f"node_send_email [roofing] failed: {e}")
+    except Exception as exc:
+        logger.error(f"email failed [roofing]: {exc}")
         state["email_sent"] = False
 
     return state
 
 
 def node_save_sheets(state: dict) -> dict:
-    """Saves to correct Google Sheet tab with roofing-specific columns."""
-    logger.info("node_save_sheets [roofing]")
-
-    TAB_MAP = {"hot": "Hot Leads", "warm": "Warm Leads", "cold": "Cold Leads"}
-
     try:
         score = state.get("score", "warm")
-
         row = [
-            datetime.now().isoformat(),                          # A Timestamp
-            state.get("name") or "",                             # B Name
-            state.get("email") or "",                            # C Email
-            state.get("phone") or "",                            # D Phone
-            state.get("location") or "",                         # E Location
-            state.get("damage_type") or "",                      # F Damage Type
-            state.get("damage_detail") or "",                    # G Damage Detail
-            state.get("storm_date") or "",                       # H Storm Date
-            state.get("roof_age") or "",                         # I Roof Age
-            str(state.get("has_insurance") or ""),               # J Has Insurance
-            str(state.get("insurance_contacted") or ""),         # K Insurance Contacted
-            str(state.get("adjuster_involved") or ""),           # L Adjuster Involved
-            str(state.get("has_interior_leak") or ""),           # M Interior Leak
-            str(state.get("is_homeowner") or ""),                # N Homeowner
-            state.get("property_type") or "",                    # O Property Type
-            state.get("urgency") or "",                          # P Urgency
-            score.upper(),                                       # Q Score
-            str(state.get("score_number") or ""),                # R Score Number
-            state.get("score_reason") or "",                     # S Score Reason
-            str(state.get("appt_booked", False)),                # T Appt Booked
-            state.get("appt_confirmed") or "",                   # U Appt DateTime
-            str(state.get("sms_sent", False)),                   # V SMS Sent
-            str(state.get("email_sent", False)),                 # W Email Sent
-            str(state.get("turn_count", 0)),                     # X Chat Turns
-            state.get("internal_summary") or "",                 # Y Internal Summary
-            state.get("session_id") or "",                       # Z Session ID
+            datetime.utcnow().isoformat(),
+            state.get("name") or "",
+            state.get("email") or "",
+            state.get("phone") or "",
+            state.get("location") or "",
+            state.get("damage_type") or "",
+            state.get("damage_detail") or "",
+            state.get("storm_date") or "",
+            state.get("roof_age") or "",
+            str(state.get("has_insurance") or ""),
+            str(state.get("insurance_contacted") or ""),
+            str(state.get("adjuster_involved") or ""),
+            str(state.get("has_interior_leak") or ""),
+            str(state.get("is_homeowner") or ""),
+            state.get("property_type") or "",
+            state.get("urgency") or "",
+            score.upper(),
+            str(state.get("score_number") or ""),
+            state.get("score_reason") or "",
+            str(state.get("appt_booked", False)),
+            state.get("appt_confirmed") or "",
+            str(state.get("sms_sent", False)),
+            str(state.get("email_sent", False)),
+            str(state.get("turn_count", 0)),
+            state.get("internal_summary") or "",
+            state.get("session_id") or "",
         ]
-
         row_num = sheets_tool.save_lead_to_sheet(
             score=score,
             row=row,
             sheet_id=settings.ROOFING_SHEET_ID,
         )
-
         state["sheet_row"] = row_num
-        state["sheet_tab"] = TAB_MAP.get(score, "Warm Leads")
-        logger.info(f"Saved: tab={state['sheet_tab']} row={row_num}")
-
-    except Exception as e:
-        logger.error(f"node_save_sheets [roofing] failed: {e}")
+        logger.info(f"sheets saved row={row_num} [roofing]")
+    except Exception as exc:
+        logger.error(f"sheets save failed [roofing]: {exc}")
 
     return state
