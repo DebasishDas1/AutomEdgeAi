@@ -7,28 +7,33 @@ export function proxy(req: NextRequest) {
 
   const hostname = host.split(":")[0];
 
+  let subdomain = "";
+
+  // Local development support
+  if (hostname.endsWith(".localhost")) {
+    subdomain = hostname.replace(".localhost", "");
+  }
+
+  // Production domain support
+  else if (hostname.split(".").length > 2) {
+    subdomain = hostname.split(".")[0];
+  }
+
+  // Ignore main domains
   if (
     hostname === "localhost" ||
+    hostname.startsWith("127.0.0.1") ||
     hostname.startsWith("192.168") ||
-    hostname.startsWith("127.0.0.1")
+    subdomain === "" ||
+    subdomain === "www"
   ) {
     return NextResponse.next();
   }
 
-  let subdomain = "";
+  // Rewrite to subdomain folder
+  url.pathname = `/${subdomain}${url.pathname}`;
 
-  if (hostname.endsWith(".localhost")) {
-    subdomain = hostname.replace(".localhost", "");
-  } else if (hostname.split(".").length > 2) {
-    subdomain = hostname.split(".")[0];
-  }
-
-  if (subdomain && subdomain !== "www") {
-    url.pathname = `/${subdomain}${url.pathname}`;
-    return NextResponse.rewrite(url);
-  }
-
-  return NextResponse.next();
+  return NextResponse.rewrite(url);
 }
 
 export const config = {

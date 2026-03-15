@@ -5,7 +5,7 @@ import { Icons } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 
-function Footer() {
+export function Footer() {
   return (
     <footer className="pt-12 px-4 md:px-6 bg-background">
       <div className="container mx-auto">
@@ -153,7 +153,7 @@ function Footer() {
           </div>
         </div>
         <div className=" w-full flex mt-4 items-center justify-center   ">
-          <h1 className="text-center text-7xl lg:text-[10rem] font-bold bg-clip-text text-transparent bg-gradient-to-b from-accent to-accent-foreground select-none">
+          <h1 className="text-center text-7xl lg:text-[10rem] font-bold bg-clip-text text-transparent from-accent to-accent-foreground select-none">
             AutomEdge
           </h1>
         </div>
@@ -161,5 +161,3 @@ function Footer() {
     </footer>
   );
 }
-
-export { Footer };
