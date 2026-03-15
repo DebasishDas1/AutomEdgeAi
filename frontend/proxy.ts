@@ -1,40 +1,33 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
-export function proxy(req: NextRequest) {
-  const host = req.headers.get("host") || ""
+export async function proxy(req: NextRequest) {
+  const host = (await req.headers).get("host") || ""
   const url = req.nextUrl.clone()
 
   const hostname = host.split(":")[0]
 
   let subdomain = ""
 
-  // Local dev (demo-hvac.localhost)
+  // localhost subdomain support
   if (hostname.endsWith(".localhost")) {
     subdomain = hostname.replace(".localhost", "")
   }
 
-  // Production (demo-hvac.automedge.com)
-  else if (hostname.split(".").length > 2) {
-    subdomain = hostname.split(".")[0]
+  // production subdomain support
+  else if (hostname.endsWith("automedge.com")) {
+    const parts = hostname.split(".")
+    if (parts.length > 2) {
+      subdomain = parts[0]
+    }
   }
 
-  // Ignore main domains
-  if (
-    hostname === "localhost" ||
-    hostname.startsWith("127.") ||
-    hostname.startsWith("192.168") ||
-    subdomain === "" ||
-    subdomain === "www"
-  ) {
+  // if no valid subdomain → DO NOTHING
+  if (!subdomain) {
     return NextResponse.next()
   }
 
-  // Prevent infinite rewrite
-  if (url.pathname.startsWith(`/${subdomain}`)) {
-    return NextResponse.next()
-  }
-
+  // rewrite to matching folder
   url.pathname = `/${subdomain}${url.pathname}`
 
   return NextResponse.rewrite(url)
@@ -42,6 +35,6 @@ export function proxy(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next|favicon.ico|api|robots.txt|sitemap.xml|.*\\..*).*)",
+    "/((?!_next|favicon.ico|robots.txt|sitemap.xml).*)",
   ],
 }
