@@ -165,10 +165,10 @@ export function N8nWorkflowBlock() {
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const [contentSize, setContentSize] = useState(() => {
     const maxX = Math.max(
-      ...initialNodes.map((n) => n.position.x + NODE_WIDTH)
+      ...initialNodes.map((n) => n.position.x + NODE_WIDTH),
     );
     const maxY = Math.max(
-      ...initialNodes.map((n) => n.position.y + NODE_HEIGHT)
+      ...initialNodes.map((n) => n.position.y + NODE_HEIGHT),
     );
     return { width: maxX + 50, height: maxY + 50 };
   });
@@ -196,8 +196,8 @@ export function N8nWorkflowBlock() {
         prev.map((node) =>
           node.id === nodeId
             ? { ...node, position: { x: constrainedX, y: constrainedY } }
-            : node
-        )
+            : node,
+        ),
       );
     });
 
@@ -352,7 +352,7 @@ export function N8nWorkflowBlock() {
                   role="article"
                   aria-label={`${node.type} node: ${node.title}`}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-br from-foreground/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover/node:opacity-100" />
+                  <div className="absolute inset-0 bg-linear-to-br from-foreground/4 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover/node:opacity-100" />
 
                   <div className="relative space-y-2">
                     <div className="flex items-center gap-2">
@@ -379,7 +379,7 @@ export function N8nWorkflowBlock() {
                     </p>
                     <div className="flex items-center gap-1.5 text-[10px] text-foreground/50">
                       <ArrowRight className="h-2.5 w-2.5" aria-hidden="true" />
-                      <span className="uppercase tracking-[0.1em]">
+                      <span className="uppercase tracking-widest">
                         Connected
                       </span>
                     </div>

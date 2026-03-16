@@ -28,7 +28,7 @@ export const HowItWorks = () => {
         <motion.h2
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-5xl md:text-7xl font-outfit font-[800] leading-tight mb-6 tracking-tighter"
+          className="text-5xl md:text-7xl font-outfit font-extrabold leading-tight mb-6 tracking-tighter"
         >
           From lead to booked job — automatically.
         </motion.h2>

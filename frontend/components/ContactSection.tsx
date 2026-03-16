@@ -37,7 +37,7 @@ export function ContactSection() {
           className="space-y-12 text-center lg:text-left"
         >
           <div className="flex flex-col items-center lg:items-start">
-            <h2 className="text-5xl md:text-7xl font-outfit font-[800] mb-6 tracking-tighter leading-none">
+            <h2 className="text-5xl md:text-7xl font-outfit font-extrabold mb-6 tracking-tighter leading-none">
               Let's talk scale.
             </h2>
             <p className="text-xl md:text-2xl text-muted-foreground font-sans font-medium tracking-tight max-w-xl">
@@ -51,7 +51,7 @@ export function ContactSection() {
               <input
                 type="text"
                 placeholder="Name"
-                className="w-full px-8 py-5 rounded-[2rem] bg-card border-2 border-border focus:border-accent outline-none transition-all font-sans font-semibold text-lg"
+                className="w-full px-8 py-5 rounded-4xl bg-card border-2 border-border focus:border-accent outline-none transition-all font-sans font-semibold text-lg"
                 required
                 value={formData.name}
                 onChange={(e) =>
@@ -61,7 +61,7 @@ export function ContactSection() {
               <input
                 type="email"
                 placeholder="Email"
-                className="w-full px-8 py-5 rounded-[2rem] bg-card border-2 border-border focus:border-accent outline-none transition-all font-sans font-semibold text-lg"
+                className="w-full px-8 py-5 rounded-4xl bg-card border-2 border-border focus:border-accent outline-none transition-all font-sans font-semibold text-lg"
                 required
                 value={formData.email}
                 onChange={(e) =>
@@ -70,7 +70,7 @@ export function ContactSection() {
               />
             </div>
             <select
-              className="w-full px-8 py-5 rounded-[2rem] bg-card border-2 border-border focus:border-accent outline-none transition-all font-sans font-semibold text-lg appearance-none cursor-pointer"
+              className="w-full px-8 py-5 rounded-4xl bg-card border-2 border-border focus:border-accent outline-none transition-all font-sans font-semibold text-lg appearance-none cursor-pointer"
               required
               value={formData.industry}
               onChange={(e) =>
@@ -88,7 +88,7 @@ export function ContactSection() {
             <textarea
               placeholder="How can we help?"
               rows={4}
-              className="w-full px-8 py-5 rounded-[2rem] bg-card border-2 border-border focus:border-accent outline-none transition-all font-sans font-semibold text-lg resize-none"
+              className="w-full px-8 py-5 rounded-4xl bg-card border-2 border-border focus:border-accent outline-none transition-all font-sans font-semibold text-lg resize-none"
               required
               value={formData.message}
               onChange={(e) =>
@@ -129,7 +129,7 @@ export function ContactSection() {
                   <MessageCircle />
                 </div>
                 <div>
-                  <div className="font-outfit font-[800] text-2xl tracking-tight">
+                  <div className="font-outfit font-extrabold text-2xl tracking-tight">
                     WhatsApp Us
                   </div>
                   <div className="text-lg text-muted-foreground font-sans font-medium leading-tight">
@@ -147,7 +147,7 @@ export function ContactSection() {
                   <Mail />
                 </div>
                 <div>
-                  <div className="font-outfit font-[800] text-2xl tracking-tight">
+                  <div className="font-outfit font-extrabold text-2xl tracking-tight">
                     Email Us
                   </div>
                   <div className="text-lg text-muted-foreground font-sans font-medium tracking-tight">
