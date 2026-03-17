@@ -18,12 +18,21 @@ async def _save_session(db: AsyncSession, row: ChatSession, state: dict) -> None
     # No manual commit() here; transaction is managed at the request level or context floor
     # and committed at handle_message/run_post_chat completion.
 
-async def start_session(db: AsyncSession, vertical: str) -> dict:
+async def start_session(db: AsyncSession, vertical: str, name: str | None = None, email: str | None = None, phone: str | None = None) -> dict:
     session_id = str(uuid.uuid4())
-    row = ChatSession(session_id=session_id, vertical=vertical, state={"messages": []})
+    # Flatten fields into the root of initial_state so the LangGraph nodes 
+    # (like node_check_complete) can access them directly via state.get().
+    initial_state = {
+        "messages": [],
+        "session_id": session_id,
+        "name": name,
+        "email": email,
+        "phone": phone
+    }
+    row = ChatSession(session_id=session_id, vertical=vertical, state=initial_state)
     db.add(row)
     await db.commit()
-    logger.info("session_started", session_id=session_id, vertical=vertical)
+    logger.info("session_started", session_id=session_id, vertical=vertical, user_data={"name": name, "email": email})
     return {"session_id": session_id, "vertical": vertical}
 
 async def send_message(db: AsyncSession, session_id: str, user_msg: str) -> dict:

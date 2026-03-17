@@ -42,10 +42,14 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 // Maps "general" to "hvac" — backend has no /general vertical
 const toApiVertical = (v: string) => (v === "general" ? "hvac" : v);
 
-export const startChatSession = (vertical: string, source = "web_chat") =>
+export const startChatSession = (
+  vertical: string,
+  userInfo?: { name: string; email: string; phone: string },
+  source = "web_chat"
+) =>
   post<StartChatResponse>(
     `/api/v1/chat/${toApiVertical(vertical)}/start`,
-    { source }
+    { source, ...userInfo }
   );
 
 export const sendChatMessage = (

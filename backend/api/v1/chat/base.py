@@ -15,6 +15,9 @@ Vertical = Literal["hvac", "pest_control", "plumbing", "roofing"]
 
 class StartRequest(BaseModel):
     source: str | None = None
+    name: str | None = None
+    email: str | None = None
+    phone: str | None = None
 
 class StartResponse(BaseModel):
     session_id: str
@@ -35,7 +38,13 @@ class MessageResponse(BaseModel):
 
 async def handle_start(vertical: Vertical, body: StartRequest, db) -> dict:
     try:
-        return await workflow_service.start_session(db=db, vertical=vertical)
+        return await workflow_service.start_session(
+            db=db, 
+            vertical=vertical,
+            name=body.name,
+            email=body.email,
+            phone=body.phone
+        )
     except Exception as e:
         logger.error("start_chat_failed", error=str(e))
         raise HTTPException(status_code=500, detail="start_failed")

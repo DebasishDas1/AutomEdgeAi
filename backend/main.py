@@ -60,17 +60,10 @@ async def request_isolation_middleware(request: Request, call_next):
         return ORJSONResponse({"detail": "critical_internal_error"}, status_code=500)
 
 
-if settings.is_dev:
-    allow_origins = ["*"]
-    allow_origin_regex = r"http://.*\.localhost:3000"
-else:
-    allow_origins = settings.ALLOWED_ORIGINS
-    allow_origin_regex = r"https://.*\.vercel\.app"
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allow_origins,
-    allow_origin_regex=allow_origin_regex,
+    allow_origins=["*"] if settings.is_dev else settings.ALLOWED_ORIGINS,
+    allow_origin_regex=settings.cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
