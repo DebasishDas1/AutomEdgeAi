@@ -13,12 +13,14 @@ import { CalendarHeader } from "./CalendarHeader";
 import { TimeSlotPicker } from "./TimeSlotPicker";
 import { BookingForm } from "./BookingForm";
 import { SuccessDisplay } from "./SuccessDisplay";
+import { createBooking } from "@/lib/api/booking";
 
 type DemoPageCalendarProps = {
   title?: string;
   highlight?: string;
   description?: string;
   tags?: string[];
+  type?: string;
 };
 
 export const DemoPageCalendar = ({
@@ -26,6 +28,7 @@ export const DemoPageCalendar = ({
   highlight = "your business?",
   description = "Book a quick 15-minute chat to see exactly how AutomEdge fits into your specific workflow. No pressure, just a live demo.",
   tags = [],
+  type = "general",
 }: DemoPageCalendarProps) => {
   const [mounted, setMounted] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
@@ -40,6 +43,7 @@ export const DemoPageCalendar = ({
     email: "",
     website: "",
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -85,10 +89,25 @@ export const DemoPageCalendar = ({
     }
   };
 
-  const handleFinalConfirm = (e: React.FormEvent) => {
+  const handleFinalConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBookingStep("success");
-    // Analytics/API call would go here
+    setIsSubmitting(true);
+
+    try {
+      await createBooking({
+        name:     formData.name,
+        email:    formData.email,
+        business: formData.website || "No Business Listed",
+        vertical: type,
+      });
+      setBookingStep("success");
+    } catch (err) {
+      console.error("Booking failed:", err);
+      // In a real app, use a toast. For now, alert is fine.
+      alert("Booking failed. Please try again or contact us directly.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!mounted) return null;
@@ -194,6 +213,7 @@ export const DemoPageCalendar = ({
                 setFormData={setFormData}
                 onConfirm={handleFinalConfirm}
                 onBack={() => setBookingStep("calendar")}
+                isSubmitting={isSubmitting}
               />
             ) : (
               <SuccessDisplay

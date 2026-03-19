@@ -12,45 +12,78 @@ from workflows.hvac.schema import LeadEnrichment, LeadScore
 
 logger = structlog.get_logger(__name__)
 
+# ── Extraction prompt ─────────────────────────────────────────────────────────
+# Key fixes:
+# - "issue" now catches service-type phrases ("Priority Service", "AC Performance")
+#   not just described problems
+# - "address" catches city/state/zip — was being stored as "location" before
+# - "urgency" catches intent signals ("priority", "urgent", "emergency", "ASAP")
+#   not just explicit urgency words
+
 _EXTRACT_SYSTEM = """\
-Extract fields from the HVAC message. Return ONLY JSON, no explanation.
+Extract HVAC/home service lead fields from the user message. Return ONLY JSON.
 
-{"name":str|null,"email":str|null,"phone":str|null,"issue":str|null,
- "description":str|null,"address":str|null,"urgency":"emergency"|"high"|"normal"|"low"|null,
- "is_homeowner":bool|null}
+{
+  "name": str | null,
+  "email": str | null,
+  "phone": str | null,
+  "issue": str | null,
+  "description": str | null,
+  "address": str | null,
+  "urgency": "emergency" | "high" | "normal" | "low" | null,
+  "is_homeowner": true | false | null
+}
 
-issue: the HVAC problem type (e.g. "AC not cooling").
-description: specific symptom detail (e.g. "stopped cooling completely", "making loud noise").
-address: city, zip, or address if mentioned.
-urgency: only if user explicitly states urgency. null otherwise.
-phone: digits only. email: lowercase. null if not mentioned.
+Field rules:
+- issue: service category OR problem (e.g. "AC Performance", "Priority Service",
+  "no heat", "burst pipe"). Catch broad service-type phrases as issue.
+- description: specific symptom detail beyond the category.
+- address: ANY location mention — city, state, zip, street address.
+  "Austin TX", "Austin, Texas", "78701", "123 Main St" all map to address.
+  NEVER leave address null if any location is mentioned.
+- urgency: infer from language signals —
+    emergency = "emergency", "no heat", "flooding", "gas smell", "right now"
+    high      = "priority", "urgent", "ASAP", "very urgent", "need help today"
+    normal    = "need service", "not working", general requests
+    low       = "quote", "estimate", "planning", "sometime"
+  null ONLY if message contains no urgency signal at all.
+- phone: digits only, strip formatting.
+- email: lowercase.
+- is_homeowner: true if "my house/home/property", false if "rental/renting".
+- null for anything not present or inferable.
 """
 
 _CLASSIFY_SYSTEM = """\
-Classify HVAC conversation. Return ONLY JSON.
+Classify home service conversation. Return ONLY JSON.
 
-{"urgency":"emergency"|"high"|"normal"|"low",
- "intent":"information"|"service_request"|"complaint"|"spam",
- "is_spam":bool,"summary":str}
+{
+  "urgency": "emergency" | "high" | "normal" | "low",
+  "intent": "information" | "service_request" | "complaint" | "spam",
+  "is_spam": bool,
+  "summary": str
+}
 
-urgency: emergency=safety risk/system down, high=not working, normal=degraded, low=planning.
-summary: 1 professional sentence for CRM.
+urgency: emergency=safety/system down, high=not working/priority,
+         normal=degraded/routine, low=planning/quotes.
+summary: 1 professional CRM sentence covering issue, location, urgency.
 """
 
 _SCORE_SYSTEM = """\
-Score HVAC lead. Return ONLY JSON.
+Score home service lead. Return ONLY JSON.
 
-{"score":"hot"|"warm"|"cold","score_reason":str,
- "next_step":"immediate_dispatch"|"schedule_callback"|"nurture"|"drop"}
+{
+  "score": "hot" | "warm" | "cold",
+  "score_reason": str,
+  "next_step": "immediate_dispatch" | "schedule_callback" | "nurture" | "drop"
+}
 
-hot=urgent+ready, warm=interested, cold=browsing, drop=spam.
+hot=urgent+contact info, warm=interested+incomplete, cold=browsing, drop=spam.
 """
 
 
 class AIService:
 
     async def extract_fields(self, last_user_message: str) -> dict | None:
-        """Extract fields from a single user message."""
         log = logger.bind(service="extract_fields")
         try:
             resp = await llm.ainvoke([
@@ -59,7 +92,8 @@ class AIService:
             ])
             data = parse_json(resp.content)
             if data:
-                log.debug("extract_fields_ok", fields=list(data.keys()))
+                log.debug("extract_fields_ok", fields={
+                    k: v for k, v in data.items() if v is not None})
                 return data
             log.warning("extract_fields_empty", raw=resp.content[:120])
             return None
@@ -68,27 +102,20 @@ class AIService:
             return None
 
     async def classify_conversation(self, messages: list[dict]) -> dict | None:
-        """
-        Classify urgency/intent/spam from the FULL conversation history.
-        Passes full_history=True to bypass the [-6:] trim in LLMManager —
-        classification accuracy depends on seeing the entire conversation.
-        """
         log = logger.bind(service="classify_conversation")
         transcript = full_transcript({"messages": messages})
         if not transcript.strip():
             return None
         try:
             resp = await llm.ainvoke(
-                [
-                    SystemMessage(content=_CLASSIFY_SYSTEM),
-                    HumanMessage(content=transcript),
-                ],
-                full_history=True,   # never trim classification calls
+                [SystemMessage(content=_CLASSIFY_SYSTEM),
+                 HumanMessage(content=transcript)],
+                full_history=True,
             )
             data = parse_json(resp.content)
             if data:
-                log.debug("classify_ok",
-                    urgency=data.get("urgency"), is_spam=data.get("is_spam"))
+                log.debug("classify_ok", urgency=data.get("urgency"),
+                          is_spam=data.get("is_spam"))
                 return data
             log.warning("classify_empty", raw=resp.content[:120])
             return None
@@ -97,14 +124,12 @@ class AIService:
             return None
 
     async def score_lead(self, enrichment: LeadEnrichment) -> LeadScore:
-        """Score lead. Fast-path for spam/emergency, LLM otherwise."""
         log = logger.bind(service="score_lead")
 
         if enrichment.is_spam:
             return LeadScore(score="cold",
                 score_reason="Spam or bot.", next_step="drop")
-
-        if enrichment.urgency == "emergency":
+        if enrichment.urgency in ("emergency", "high"):
             return LeadScore(score="hot",
                 score_reason="Active emergency.", next_step="immediate_dispatch")
 
@@ -137,7 +162,7 @@ class AIService:
             score_reason="Defaulted to warm.", next_step="schedule_callback")
 
     async def enrich_lead(self, messages: list[dict]) -> Optional[LeadEnrichment]:
-        """Legacy single-pass for other verticals."""
+        """Legacy single-pass for non-HVAC verticals."""
         log = logger.bind(service="enrich_lead_legacy")
         last_user = next(
             (m["content"] for m in reversed(messages) if m.get("role") == "user"), None)

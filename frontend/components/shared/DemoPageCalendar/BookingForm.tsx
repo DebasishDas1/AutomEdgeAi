@@ -9,6 +9,7 @@ type BookingFormProps = {
   setFormData: (data: any) => void;
   onConfirm: (e: React.FormEvent) => void;
   onBack: () => void;
+  isSubmitting?: boolean;
 };
 
 export const BookingForm = ({
@@ -17,6 +18,7 @@ export const BookingForm = ({
   setFormData,
   onConfirm,
   onBack,
+  isSubmitting = false,
 }: BookingFormProps) => {
   return (
     <div className="p-8 md:p-14 max-w-2xl mx-auto w-full">
@@ -88,9 +90,12 @@ export const BookingForm = ({
           </button>
           <button
             type="submit"
-            className="flex-2 py-5 px-6 rounded-2xl font-black bg-cta glow-cta shadow-2xl text-foreground hover:-translate-y-1 active:scale-95 transition-all text-xl"
+            disabled={isSubmitting}
+            className={`flex-2 py-5 px-6 rounded-2xl font-black bg-cta glow-cta shadow-2xl text-foreground hover:-translate-y-1 active:scale-95 transition-all text-xl ${
+              isSubmitting ? "opacity-50 cursor-not-allowed" : ""
+            }`}
           >
-            Confirm My Demo
+            {isSubmitting ? "Booking..." : "Confirm My Demo"}
           </button>
         </div>
       </form>

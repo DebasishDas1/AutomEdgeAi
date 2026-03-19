@@ -24,14 +24,8 @@ from workflows.hvac.state import HvacState
 logger = structlog.get_logger(__name__)
 
 _MAX_TURNS = 10
-
-# Fields shown to the LLM as "already collected"
 _COLLECTED_FIELDS = ("issue", "description", "urgency", "address", "name", "phone", "email")
-
-# Fields that must be non-null before is_complete fires.
-# urgency/address/description start as None in state and are only set
-# when the user explicitly provides them — never pre-filled by classification.
-_REQUIRED_FIELDS = ("issue", "urgency", "address")
+_REQUIRED_FIELDS  = ("issue", "urgency", "address")
 
 
 def _utcnow() -> str:
@@ -45,6 +39,24 @@ def _safe_merge(state: HvacState, field: str, new_val) -> None:
     if new_val is not None and field_missing(state, field):
         state[field] = new_val
 
+def _migrate_legacy_fields(state: HvacState) -> None:
+    """
+    Fix old sessions where 'location' was used instead of 'address'.
+    Also promotes ai_urgency → urgency if urgency never explicitly set.
+    """
+    # location → address migration
+    if field_missing(state, "address") and state.get("location"):
+        state["address"] = state.pop("location")
+
+    # If urgency still null but ai_urgency is set and conversation has enough context,
+    # promote it so session can complete (prevents infinite loop)
+    if field_missing(state, "urgency") and state.get("ai_urgency"):
+        turn = int(state.get("turn_count", 0))
+        if turn >= 2:  # only promote after at least 2 turns of context
+            state["urgency"] = state["ai_urgency"]
+            logger.debug("urgency_promoted_from_ai_assessment",
+                urgency=state["urgency"], session_id=state.get("session_id"))
+
 
 # ── 1. Validate ───────────────────────────────────────────────────────────────
 
@@ -52,6 +64,9 @@ async def node_validate_input(state: HvacState) -> HvacState:
     start = time.perf_counter()
     state["last_node"] = "validate_input"
     state["error"] = None
+
+    # Fix any legacy field naming from old sessions
+    _migrate_legacy_fields(state)
 
     msgs = state.get("messages", [])
     if not msgs:
@@ -84,21 +99,23 @@ async def node_enrich_lead(state: HvacState) -> HvacState:
         (m["content"] for m in reversed(messages) if m.get("role") == "user"), None
     )
 
-    # A. Extract explicit contact fields from last user message only.
-    #    _safe_merge never overwrites already-captured values.
+    # A. Extract explicit fields from last user message
     if last_user:
         try:
             extraction = await ai_service.extract_fields(last_user)
             if extraction:
-                _safe_merge(state, "name",        extraction.get("name"))
-                _safe_merge(state, "email",       extraction.get("email"))
-                _safe_merge(state, "phone",       extraction.get("phone"))
-                _safe_merge(state, "issue",       extraction.get("issue"))
-                _safe_merge(state, "description", extraction.get("description"))
-                _safe_merge(state, "address",     extraction.get("address"))
-                _safe_merge(state, "is_homeowner",extraction.get("is_homeowner"))
-                # urgency: only set from extraction if user explicitly stated it
-                # (e.g. "it's an emergency" / "not urgent"). Never from classification.
+                _safe_merge(state, "name",         extraction.get("name"))
+                _safe_merge(state, "email",        extraction.get("email"))
+                _safe_merge(state, "phone",        extraction.get("phone"))
+                _safe_merge(state, "issue",        extraction.get("issue"))
+                _safe_merge(state, "description",  extraction.get("description"))
+                _safe_merge(state, "is_homeowner", extraction.get("is_homeowner"))
+
+                # address: accept from either "address" or "location" key
+                addr = extraction.get("address") or extraction.get("location")
+                _safe_merge(state, "address", addr)
+
+                # urgency: only from explicit user statement
                 extracted_urgency = extraction.get("urgency")
                 if extracted_urgency and field_missing(state, "urgency"):
                     state["urgency"] = extracted_urgency
@@ -106,17 +123,20 @@ async def node_enrich_lead(state: HvacState) -> HvacState:
             logger.warning("field_extraction_failed", error=str(exc),
                            session_id=state.get("session_id"))
 
-    # B. Classification — urgency/intent/spam from full history.
-    #    NOTE: classification urgency is an AI ASSESSMENT used for routing only.
-    #    It does NOT set state["urgency"] — that must come from explicit user input.
+    # B. Classify full conversation — stores assessment in ai_urgency only
     try:
         classification = await ai_service.classify_conversation(messages)
         if classification:
-            # Store as assessment fields, separate from collected contact fields
             state["intent"]     = classification.get("intent", "service_request")
             state["is_spam"]    = classification.get("is_spam", False)
             state["ai_summary"] = classification.get("summary")
-            state["ai_urgency"] = classification.get("urgency", "normal")  # assessment only
+            state["ai_urgency"] = classification.get("urgency", "normal")
+
+            # If urgency still not explicitly set after 2+ turns, promote from assessment
+            if field_missing(state, "urgency") and int(state.get("turn_count", 0)) >= 2:
+                state["urgency"] = state["ai_urgency"]
+                logger.debug("urgency_promoted", urgency=state["urgency"],
+                             session_id=state.get("session_id"))
     except Exception as exc:
         logger.warning("classification_failed", error=str(exc),
                        session_id=state.get("session_id"))
@@ -126,7 +146,6 @@ async def node_enrich_lead(state: HvacState) -> HvacState:
     logger.info("lead_enriched",
         session_id=state.get("session_id"),
         collected={f: state.get(f) for f in _REQUIRED_FIELDS},
-        is_spam=state.get("is_spam"),
     )
     state["duration_ms"] = _elapsed(start)
     return state
@@ -148,6 +167,24 @@ async def node_chat_reply(state: HvacState) -> HvacState:
     start = time.perf_counter()
     state["last_node"] = "chat_reply"
 
+    # When session is complete, send farewell directly — no LLM needed.
+    if state.get("is_complete"):
+        name    = state.get("name") or "there"
+        phone   = state.get("phone") or "the number you provided"
+        address = state.get("address") or "your location"
+        issue   = state.get("issue") or "your issue"
+        reply_content = (
+            f"Perfect — dispatching a technician to {address} for {issue}. "
+            f"Our tech will call {phone} within 15 minutes. You're all set!"
+        )
+        state["turn_count"] = int(state.get("turn_count", 0)) + 1
+        existing = list(state.get("messages", []))
+        existing.append({"role": "assistant", "content": reply_content, "ts": _utcnow()})
+        state["messages"] = existing
+        state["duration_ms"] = _elapsed(start)
+        return state
+
+    # Normal turn — ask for next missing field via LLM
     slots = state.get("appt_slots") or get_appt_slots()
     state["appt_slots"] = slots
 
@@ -184,7 +221,6 @@ async def node_score_lead(state: HvacState) -> HvacState:
     start = time.perf_counter()
     state["last_node"] = "score_lead"
 
-    # Use ai_urgency (assessment) for scoring if explicit urgency not set
     urgency_for_score = state.get("urgency") or state.get("ai_urgency", "normal")
 
     snapshot = LeadEnrichment(
@@ -195,7 +231,7 @@ async def node_score_lead(state: HvacState) -> HvacState:
         urgency=urgency_for_score,
         intent=state.get("intent", "service_request"),
         is_spam=state.get("is_spam", False),
-        summary=state.get("ai_summary") or "HVAC Lead",
+        summary=state.get("ai_summary") or "Lead captured",
     )
 
     try:
@@ -240,7 +276,8 @@ async def node_finalize_and_deliver(state: HvacState) -> HvacState:
             db.add(lead)
             await db.commit()
     except Exception as exc:
-        logger.error("db_persistence_failed", error=str(exc), session_id=state.get("session_id"))
+        logger.error("db_persistence_failed", error=str(exc),
+                     session_id=state.get("session_id"))
 
     from core.config import settings
     score_label = state.get("score", "warm")
@@ -266,13 +303,13 @@ async def node_finalize_and_deliver(state: HvacState) -> HvacState:
     if state.get("email"):
         safe = {k: html_lib.escape(str(state.get(k) or ""))
                 for k in ("name", "issue", "description", "address",
-                           "urgency", "ai_summary", "next_step", "score")}
+                          "urgency", "ai_summary", "next_step", "score")}
         tasks.append(tool_executor.execute(
             "resend", email_tool.send_email,
             to=state["email"],
-            subject=f"HVAC Lead: {score_label.upper()} — {safe['issue']}",
+            subject=f"Lead: {score_label.upper()} — {safe['issue']}",
             html=(
-                f"<h3>HVAC Lead: {safe['score'].upper()}</h3>"
+                f"<h3>Lead: {safe['score'].upper()}</h3>"
                 f"<p><b>Name:</b> {safe['name']}</p>"
                 f"<p><b>Issue:</b> {safe['issue']}</p>"
                 f"<p><b>Description:</b> {safe['description']}</p>"

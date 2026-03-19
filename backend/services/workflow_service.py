@@ -26,6 +26,11 @@ async def start_session(
     phone: str | None = None, source: str | None = None,
 ) -> dict:
     session_id = str(uuid.uuid4())
+
+    # FIX: Seed name/email/phone from form into graph state directly.
+    # Previously these were stored only in form_data and never reached
+    # the graph, so the bot kept asking for them even though we had them.
+    # Now they start as collected — bot skips straight to issue/urgency/address.
     initial_state = {
         "session_id": session_id,
         "vertical": vertical,
@@ -34,27 +39,29 @@ async def start_session(
         "is_complete": False,
         "is_spam": False,
         "intent": "service_request",
-        # All contact/collected fields start as None.
-        # They are ONLY set when user explicitly provides them.
-        # Never pre-filled — prevents premature is_complete.
-        "name": None,
-        "email": None,
-        "phone": None,
-        "issue": None,
+        # Pre-fill from form — bot will not ask for these
+        "name":  name  or None,
+        "email": email or None,
+        "phone": phone or None,
+        # These must still be collected through conversation
+        "issue":       None,
         "description": None,
-        "urgency": None,      # None, not "normal" — prevents classification from satisfying this
-        "address": None,
-        "is_homeowner": None,
-        "ai_urgency": None,   # classification assessment, separate from collected urgency
+        "urgency":     None,
+        "address":     None,
+        "is_homeowner":None,
+        "ai_urgency":  None,
     }
+
     row = ChatSession(
-        session_id=session_id, vertical=vertical,
+        session_id=session_id,
+        vertical=vertical,
         state=initial_state,
         form_data={"name": name, "email": email, "phone": phone, "source": source},
     )
     db.add(row)
     await db.commit()
-    logger.info("session_started", session_id=session_id, vertical=vertical)
+    logger.info("session_started", session_id=session_id, vertical=vertical,
+                has_name=bool(name), has_email=bool(email), has_phone=bool(phone))
     return {"session_id": session_id, "vertical": vertical, "turn": 0}
 
 
@@ -82,11 +89,6 @@ async def send_message(db: AsyncSession, session_id: str, user_msg: str) -> dict
 
     if result.get("is_complete") and not state.get("is_complete"):
         post_state = dict(result)
-        if hasattr(row, "form_data") and row.form_data:
-            fd = row.form_data
-            post_state.setdefault("name",  fd.get("name"))
-            post_state.setdefault("email", fd.get("email"))
-            post_state.setdefault("phone", fd.get("phone"))
         asyncio.create_task(run_post_chat(post_state, row.vertical))
 
     last_ai = next(
@@ -101,7 +103,8 @@ async def send_message(db: AsyncSession, session_id: str, user_msg: str) -> dict
         "appt_booked": bool(result.get("appt_booked")),
         "fields_collected": {
             k: result.get(k)
-            for k in ("name", "email", "phone", "issue", "description", "urgency", "address")
+            for k in ("name", "email", "phone", "issue",
+                      "description", "urgency", "address")
             if result.get(k) is not None
         },
     }
