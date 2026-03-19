@@ -41,7 +41,7 @@ export function DemoPageHero({
             {subTitle}
           </h1>
           {/* Description */}
-          <p className="text-lg md:text-[1.25rem] text-muted-foreground font-medium max-w-2xl leading-relaxed">
+          <p className="text-lg md:text-2xl text-muted-foreground font-medium max-w-2xl leading-relaxed mt-2">
             {description}
           </p>
           {/* Tags */}
@@ -55,8 +55,24 @@ export function DemoPageHero({
               ))}
             </div>
           )}
-          <Badge className="flex items-center gap-2 px-4 py-2 text-sm md:text-base font-medium">
-            <Flame className="w-4 h-4 text-cta shrink-0" />
+          <div className="flex flex-col sm:flex-row items-center gap-4 mt-6">
+            <button
+              onClick={() =>
+                document
+                  .getElementById("calendar")
+                  ?.scrollIntoView({ behavior: "smooth" })
+              }
+              className="w-full sm:w-auto px-10 py-5 bg-cta glow-cta text-foreground font-black rounded-2xl hover:-translate-y-1 transition-all active:scale-95 shadow-2xl text-lg"
+            >
+              Book My Demo
+            </button>
+            <button className="w-full sm:w-auto px-10 py-5 bg-background border-2 border-border/50 text-foreground font-bold rounded-2xl hover:bg-muted transition-all text-lg">
+              Watch 2-Min Video
+            </button>
+          </div>
+
+          <Badge className="flex items-center gap-2 px-6 py-3 text-sm md:text-base font-bold mt-8 bg-accent/10 border-accent/20 text-accent rounded-full">
+            <Flame className="w-5 h-5 text-accent shrink-0" />
             Every hour without this, a lead goes to whoever responds faster
           </Badge>
         </div>

@@ -60,7 +60,7 @@ export function Navbar() {
 
         {/* CTA */}
         <Link href="#contact">
-          <Button className="bg-cta px-4 py-2 rounded-full font-semibold">
+          <Button className="w-full py-6 bg-cta glow-cta text-black font-bold shadow-xl rounded-2xl hover:bg-cta-hover">
             Get a Free Demo
           </Button>
         </Link>

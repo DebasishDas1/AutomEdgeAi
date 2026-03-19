@@ -83,10 +83,25 @@ export default function RootLayout({
       )}
       suppressHydrationWarning
     >
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              name: "Automedge",
+              url: "https://automedge.com",
+              logo: "https://automedge.com/AutomEdge-logo.png",
+              description: "Lead automation for home service companies including HVAC, Roofing, Plumbing, and Pest Control.",
+              sameAs: ["https://twitter.com/automedge", "https://linkedin.com/company/automedge"],
+            }),
+          }}
+        />
+      </head>
       <body
         className={[
           "font-sans",
-          // 'bg-white dark:bg-slate-950',
           "text-slate-900 dark:text-slate-100",
           "antialiased",
           "min-h-screen",

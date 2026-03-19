@@ -125,51 +125,58 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
   const isCompleteRef = useRef(false);
 
   const handleSend = useCallback(
-    async (text: string = input) => {
-      const msg = text.trim();
+    async (text?: unknown) => {
+      // 🛡️ Bulletproof input normalization
+      const raw = typeof text === "string" ? text : input;
+      const msg = (raw ?? "").toString().trim();
 
-      // FIX: read from refs, not closure-captured state values.
-      // The old code used isComplete and isTyping from the closure — on the
-      // second message, isTyping was still true in the stale closure even
-      // after setIsTyping(false) had been called, so the guard blocked the send.
-      if (!msg || isCompleteRef.current || isTypingRef.current) return;
+      if (!msg) return;
+      if (isCompleteRef.current || isTypingRef.current) return;
 
+      // 🧠 optimistic UI
       setMessages((prev) => [
         ...prev,
         { id: uid(), text: msg, sender: "user" },
       ]);
       setInput("");
+
       setIsTyping(true);
       isTypingRef.current = true;
 
       try {
-        // FIX: read sessionId from ref, not closure-captured state.
         const currentSessionId = sessionIdRef.current;
+
         if (!currentSessionId) {
-          addBotMsg("Session not ready. Please try again in a moment.");
+          addBotMsg("Session still warming up… give it a second.");
           return;
         }
 
         const data = await sendChatMessage(apiVertical, currentSessionId, msg);
 
-        if (data.is_complete) {
+        if (data?.is_complete) {
           setIsComplete(true);
           isCompleteRef.current = true;
         }
 
         addBotMsg(
-          data.message || "My apologies, an unexpected interruption occurred.",
+          data?.message || "Something slipped through the wires. Try again?",
         );
-      } catch {
-        addBotMsg("Connectivity disruption. Please verify your connection.");
+      } catch (err: any) {
+        // 🌐 smarter error UX
+        if (err?.status === 408) {
+          addBotMsg("Server is waking up… try again in a moment.");
+        } else if (err?.status === 404) {
+          addBotMsg("Session expired. Refresh and start again.");
+        } else {
+          addBotMsg("Network hiccup. Check connection and retry.");
+        }
+
+        console.error("send error:", err);
       } finally {
         setIsTyping(false);
         isTypingRef.current = false;
       }
     },
-    // FIX: deps are now only the values this closure genuinely needs to
-    // re-create for: `input` (user typed text) and `apiVertical` (config).
-    // sessionId, isTyping, isComplete removed — all read from refs now.
     [input, apiVertical, addBotMsg],
   );
 
