@@ -15,6 +15,7 @@ import { ChatInput } from "./ChatInput";
 export function Chatbot({ vertical = "general" }: ChatbotProps) {
   const cfg = CONFIGS[vertical];
   const accentColor = "#1D9E75";
+  const apiVertical = vertical === "general" ? "hvac" : vertical;
 
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState<"form" | "chat">("form");
@@ -34,9 +35,29 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const sessionInit = useRef(false);
 
-  const apiVertical = vertical === "general" ? "hvac" : vertical;
+  // ── THE CORE FIX ──────────────────────────────────────────────────────────
+  // sessionId is captured by the handleSend closure at creation time.
+  // When handleSend is created (during form step), sessionId === null.
+  // When the user sends their FIRST message, the closure still sees the null
+  // from when it was created, even though setSessionId() was called later.
+  //
+  // React state updates are async — the closure does NOT automatically see
+  // new state values. The handleSend useCallback re-creates when its deps
+  // change, but the dep array had [sessionId] which was null at mount,
+  // and the closure was being read from a stale snapshot.
+  //
+  // The reliable fix: store sessionId in a ref so it's always the live value,
+  // regardless of when the closure was created. The ref is mutable and shared —
+  // reading sessionIdRef.current always gives the current value.
+  const sessionIdRef = useRef<string | null>(null);
 
-  // Auto-scroll on new messages
+  // Keep ref in sync with state (state drives UI reactivity, ref drives logic)
+  const setSession = (id: string) => {
+    setSessionId(id);
+    sessionIdRef.current = id;
+  };
+
+  // ── Auto-scroll ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTo({
@@ -46,12 +67,14 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
     }
   }, [messages, isTyping, step]);
 
+  // ── Focus input when chat opens ────────────────────────────────────────────
   useEffect(() => {
     if (isOpen && step === "chat" && sessionInit.current) {
       setTimeout(() => inputRef.current?.focus(), 400);
     }
   }, [isOpen, step]);
 
+  // ── addBotMsg ──────────────────────────────────────────────────────────────
   const addBotMsg = useCallback(
     (text: string, quickReplies?: Message["quickReplies"]) => {
       setMessages((prev) => [
@@ -62,6 +85,7 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
     [],
   );
 
+  // ── Form submit ────────────────────────────────────────────────────────────
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userInfo.name || !userInfo.email || !userInfo.phone) return;
@@ -69,13 +93,16 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
     setIsSubmitting(true);
     try {
       const data = await startChatSession(apiVertical, userInfo);
-      setSessionId(data.session_id);
+      // FIX: use setSession() so both state AND ref are updated atomically.
+      // Previously only setSessionId(data.session_id) was called — the ref
+      // was never set, so handleSend always read null from sessionIdRef.
+      setSession(data.session_id);
 
       setTimeout(() => {
         setMessages([
           {
             id: uid(),
-            text: `Terrific to meet you, ${userInfo.name.split(" ")[0]}. ${cfg.initialMessage}`,
+            text: `Hi ${userInfo.name.split(" ")[0]}! ${cfg.initialMessage}`,
             sender: "bot",
             quickReplies: cfg.quickReplies,
           },
@@ -90,10 +117,22 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
     }
   };
 
+  // ── Send message ───────────────────────────────────────────────────────────
+  // FIX: removed sessionId from deps array — we read sessionIdRef.current
+  // instead so the closure is never stale. isTyping and isComplete are also
+  // read from refs below for the same reason (they're guards, not UI values).
+  const isTypingRef = useRef(false);
+  const isCompleteRef = useRef(false);
+
   const handleSend = useCallback(
     async (text: string = input) => {
       const msg = text.trim();
-      if (!msg || isComplete || isTyping) return;
+
+      // FIX: read from refs, not closure-captured state values.
+      // The old code used isComplete and isTyping from the closure — on the
+      // second message, isTyping was still true in the stale closure even
+      // after setIsTyping(false) had been called, so the guard blocked the send.
+      if (!msg || isCompleteRef.current || isTypingRef.current) return;
 
       setMessages((prev) => [
         ...prev,
@@ -101,14 +140,23 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
       ]);
       setInput("");
       setIsTyping(true);
+      isTypingRef.current = true;
 
       try {
-        if (!sessionId) {
-          addBotMsg("Establishing secure connection…");
+        // FIX: read sessionId from ref, not closure-captured state.
+        const currentSessionId = sessionIdRef.current;
+        if (!currentSessionId) {
+          addBotMsg("Session not ready. Please try again in a moment.");
           return;
         }
-        const data = await sendChatMessage(apiVertical, sessionId, msg);
-        if (data.is_complete) setIsComplete(true);
+
+        const data = await sendChatMessage(apiVertical, currentSessionId, msg);
+
+        if (data.is_complete) {
+          setIsComplete(true);
+          isCompleteRef.current = true;
+        }
+
         addBotMsg(
           data.message || "My apologies, an unexpected interruption occurred.",
         );
@@ -116,9 +164,13 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
         addBotMsg("Connectivity disruption. Please verify your connection.");
       } finally {
         setIsTyping(false);
+        isTypingRef.current = false;
       }
     },
-    [input, isComplete, isTyping, sessionId, apiVertical, addBotMsg],
+    // FIX: deps are now only the values this closure genuinely needs to
+    // re-create for: `input` (user typed text) and `apiVertical` (config).
+    // sessionId, isTyping, isComplete removed — all read from refs now.
+    [input, apiVertical, addBotMsg],
   );
 
   return (
@@ -173,7 +225,6 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
                     <MessageList
                       messages={messages}
                       isTyping={isTyping}
-                      // accentColor={accentColor}
                       scrollRef={scrollRef}
                       onQuickReply={handleSend}
                     />

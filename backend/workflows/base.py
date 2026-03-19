@@ -1,55 +1,103 @@
 # workflows/base.py
 # Shared helpers used by ALL vertical nodes.
 # Import from here — never redefine in individual nodes.py files.
+from __future__ import annotations
+
 import json
 import logging
-from datetime import datetime, timedelta
+import re
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
-logger   = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 _MISSING = object()
 
 
 # ── Field helpers ─────────────────────────────────────────────────────────────
 
 def field_missing(state: dict, key: str) -> bool:
-    """True only if field was never set. bool False is a valid collected value."""
+    """True only if field was never set or is None. bool False is a valid value."""
     val = state.get(key, _MISSING)
     return val is _MISSING or val is None
 
 
 def merge_extracted(state: dict, extracted: dict) -> dict:
+    """
+    Merge extracted fields into state without overwriting existing values.
+    Fix: original mutated `state` directly — fine for dicts but annotated here
+    for clarity that this is an in-place operation.
+    """
     for k, v in extracted.items():
         if v is None:
             continue
         if field_missing(state, k):
             state[k] = v
-            logger.debug(f"field captured: {k}={v!r}")
+            logger.debug("field_captured", key=k, value=repr(v))
     return state
 
 
 def parse_json(content: str) -> dict | None:
-    """Extract first JSON object from an LLM response. Returns None on failure."""
-    s = content.find("{")
-    e = content.rfind("}") + 1
-    if s == -1 or e == 0:
+    """
+    Extract the first JSON object from an LLM response.
+
+    Fix: original only handled {...} — now also handles arrays [...] and
+    strips common LLM markdown fences (```json ... ```) before parsing.
+    Returns None on any failure; never raises.
+    """
+    if not content:
         return None
+
+    # Strip markdown code fences
+    cleaned = re.sub(r"```(?:json)?\s*", "", content).strip()
+    cleaned = cleaned.replace("```", "")
+
+    # Find first { or [
+    start_brace = cleaned.find("{")
+    start_bracket = cleaned.find("[")
+
+    if start_brace == -1 and start_bracket == -1:
+        return None
+
+    # Pick whichever comes first
+    if start_brace == -1:
+        start = start_bracket
+        end = cleaned.rfind("]") + 1
+    elif start_bracket == -1 or start_brace <= start_bracket:
+        start = start_brace
+        end = cleaned.rfind("}") + 1
+    else:
+        start = start_bracket
+        end = cleaned.rfind("]") + 1
+
+    if end == 0:
+        return None
+
     try:
-        return json.loads(content[s:e])
+        return json.loads(cleaned[start:end])
     except json.JSONDecodeError as exc:
-        logger.warning(f"JSON parse failed: {exc} | snippet: {content[s:s+120]}")
+        logger.warning(
+            "json_parse_failed",
+            error=str(exc),
+            snippet=cleaned[start : start + 120],
+        )
         return None
 
 
 # ── Message helpers ───────────────────────────────────────────────────────────
 
 def build_lc_messages(state: dict) -> list:
-    """Convert state['messages'] → list of LangChain HumanMessage/AIMessage."""
-    out = []
+    """
+    Convert state['messages'] → list of LangChain HumanMessage / AIMessage.
+    Skips messages with empty content to avoid sending noise to the LLM.
+    """
+    out: list = []
     for m in state.get("messages", []):
-        role    = m.get("role")
-        content = m.get("content", "")
+        role = m.get("role")
+        content = (m.get("content") or "").strip()
+        if not content:
+            continue
         if role == "user":
             out.append(HumanMessage(content=content))
         elif role == "assistant":
@@ -60,8 +108,11 @@ def build_lc_messages(state: dict) -> list:
 def last_user_msg(state: dict) -> str | None:
     """Content of the most recent user message, or None."""
     return next(
-        (m["content"] for m in reversed(state.get("messages", []))
-         if m.get("role") == "user"),
+        (
+            m["content"]
+            for m in reversed(state.get("messages", []))
+            if m.get("role") == "user" and m.get("content")
+        ),
         None,
     )
 
@@ -71,13 +122,19 @@ def full_transcript(state: dict) -> str:
     return "\n".join(
         f"{m['role'].upper()}: {m['content']}"
         for m in state.get("messages", [])
+        if m.get("content")
     )
 
 
 # ── Appointment slots ─────────────────────────────────────────────────────────
 
 def get_appt_slots() -> list[str]:
-    today = datetime.now()
+    """
+    Generate 3 appointment slots starting tomorrow.
+    Fix: uses datetime.now(timezone.utc) — datetime.now() without tz is
+    ambiguous on servers and breaks if TZ env var changes at runtime.
+    """
+    today = datetime.now(timezone.utc)
     return [
         (today + timedelta(days=1)).strftime("%A, %b %d at 10:00 AM"),
         (today + timedelta(days=2)).strftime("%A, %b %d at 2:00 PM"),
@@ -86,49 +143,52 @@ def get_appt_slots() -> list[str]:
 
 
 # ── Rule-based lead scorer ────────────────────────────────────────────────────
-# Replaces URGENCY_CLASSIFY_SYSTEM + LEAD_SCORING_SYSTEM LLM calls (~450 tokens)
-# in pest/plumbing/roofing with deterministic, zero-token logic.
-# Each vertical has its own keyword sets and signals.
+# Zero-token deterministic scoring — replaces 2 LLM calls (~450 tokens) for
+# verticals that don't need nuanced AI judgment on simple signals.
 
-_EMERGENCY_HVAC = {
+_EMERGENCY_HVAC: frozenset[str] = frozenset({
     "no heat", "no ac", "carbon monoxide", "gas smell",
     "smoke", "no hot water", "system down",
-}
-_EMERGENCY_PLUMBING = {
+})
+_EMERGENCY_PLUMBING: frozenset[str] = frozenset({
     "flooding", "water damage", "burst pipe", "burst", "overflow",
     "sewage", "sewer backup", "no water", "water everywhere",
-}
-_EMERGENCY_PEST = {
+})
+_EMERGENCY_PEST: frozenset[str] = frozenset({
     "termites", "bed bugs", "rodents", "cockroaches", "wasps",
     "bees", "hornets", "rat", "rats", "mice",
-}
-_EMERGENCY_ROOFING = {
+})
+_EMERGENCY_ROOFING: frozenset[str] = frozenset({
     "active leak", "ceiling leak", "water coming in", "interior leak",
     "storm damage", "missing shingles", "collapsed",
-}
+})
 
 
-def rule_score_lead(state: dict) -> dict:
+def rule_score_lead(state: dict) -> dict[str, Any]:
     """
-    Score a lead with zero LLM tokens.
-    Handles all 4 verticals via state['vertical'].
-    Returns {"score": "hot"|"warm"|"cold", "score_number": int, "score_reason": str,
-             "urgency": str}  ← urgency is set here too, replacing node_score_urgency
+    Score a lead with zero LLM tokens. All 4 verticals supported.
+
+    Returns:
+        score:        "hot" | "warm" | "cold"
+        score_number: 0–100
+        score_reason: human-readable explanation
+        urgency:      vertical-specific urgency string
     """
-    vertical      = (state.get("vertical") or "hvac").lower()
-    urgency_raw   = (state.get("urgency") or "").lower()
-    is_homeowner  = state.get("is_homeowner")
-    has_email     = bool(state.get("email"))
-    has_phone     = bool(state.get("phone"))
-    appt_booked   = bool(state.get("appt_booked"))
-    turn_count    = int(state.get("turn_count") or 0)
-    issue         = (state.get("issue") or "").lower()
+    vertical = (state.get("vertical") or "hvac").lower()
+    urgency_raw = (state.get("urgency") or "").lower()
+    is_homeowner = state.get("is_homeowner")
+    has_email = bool(state.get("email"))
+    has_phone = bool(state.get("phone"))
+    appt_booked = bool(state.get("appt_booked"))
+    turn_count = int(state.get("turn_count") or 0)
+    issue = (state.get("issue") or "").lower()
     budget_signal = (state.get("budget_signal") or "").lower()
 
     score = 50
-    notes = []
+    notes: list[str] = []
+    emergency = False
 
-    # ── Vertical-specific emergency detection ─────────────────────────────────
+    # ── Vertical-specific urgency detection ───────────────────────────────────
     if vertical == "hvac":
         emergency = urgency_raw in ("urgent", "emergency") or any(
             kw in issue for kw in _EMERGENCY_HVAC
@@ -136,13 +196,13 @@ def rule_score_lead(state: dict) -> dict:
         urgency_out = "urgent" if emergency else (urgency_raw or "normal")
 
     elif vertical == "plumbing":
+        has_water_damage = bool(state.get("has_water_damage"))
         emergency = urgency_raw == "emergency" or any(
             kw in issue for kw in _EMERGENCY_PLUMBING
         )
-        has_water_damage = bool(state.get("has_water_damage"))
         if emergency or has_water_damage:
             urgency_out = "emergency"
-            score += 10  # extra for plumbing emergency severity
+            score += 10
         elif urgency_raw == "urgent":
             urgency_out = "urgent"
         else:
@@ -153,13 +213,11 @@ def rule_score_lead(state: dict) -> dict:
         has_damage = bool(state.get("has_damage"))
         if pest in _EMERGENCY_PEST or has_damage:
             urgency_out = "high"
-            emergency   = True
+            emergency = True
         elif pest in {"ants", "fleas", "mosquitoes"}:
             urgency_out = "medium"
-            emergency   = False
         else:
             urgency_out = "low"
-            emergency   = False
 
     elif vertical == "roofing":
         damage_type = (state.get("damage_type") or "").lower()
@@ -168,31 +226,29 @@ def rule_score_lead(state: dict) -> dict:
             kw in issue for kw in _EMERGENCY_ROOFING
         ):
             urgency_out = "storm_damage" if damage_type == "storm" else "leak_active"
-            emergency   = True
+            emergency = True
         elif damage_type == "wear":
             urgency_out = "inspection_needed"
-            emergency   = False
         else:
             urgency_out = "planning"
-            emergency   = False
 
     else:
-        emergency   = urgency_raw in ("urgent", "emergency")
+        emergency = urgency_raw in ("urgent", "emergency")
         urgency_out = urgency_raw or "normal"
 
     # ── Universal scoring signals ─────────────────────────────────────────────
-    if emergency:         score += 25; notes.append("emergency")
-    if is_homeowner:      score += 10; notes.append("homeowner")
-    if has_email:         score +=  5; notes.append("email")
-    if has_phone:         score +=  5; notes.append("phone")
-    if appt_booked:       score += 15; notes.append("appt booked")
-    if turn_count >= 6:   score +=  5; notes.append(f"{turn_count} turns")
+    if emergency:       score += 25; notes.append("emergency")
+    if is_homeowner:    score += 10; notes.append("homeowner")
+    if has_email:       score += 5;  notes.append("email")
+    if has_phone:       score += 5;  notes.append("phone")
+    if appt_booked:     score += 15; notes.append("appt booked")
+    if turn_count >= 6: score += 5;  notes.append(f"{turn_count} turns")
 
-    # Vertical-specific bonuses
+    # Vertical bonuses
     if vertical == "pest_control" and state.get("wants_annual"):
         score += 10; notes.append("wants annual plan")
     if vertical == "roofing" and state.get("has_insurance"):
-        score +=  8; notes.append("has insurance")
+        score += 8; notes.append("has insurance")
     if vertical == "plumbing" and state.get("has_water_damage"):
         score += 10; notes.append("water damage")
 
@@ -204,14 +260,14 @@ def rule_score_lead(state: dict) -> dict:
 
     score = max(0, min(100, score))
 
-    if score >= 70:   label = "hot"
-    elif score >= 35: label = "warm"
-    else:             label = "cold"
+    if score >= 70:     label = "hot"
+    elif score >= 35:   label = "warm"
+    else:               label = "cold"
 
-    reason = f"{label.upper()}: {', '.join(notes) if notes else 'standard lead'}."
+    note_str = ", ".join(notes) if notes else "standard lead"
     return {
-        "score":        label,
+        "score": label,
         "score_number": score,
-        "score_reason": reason,
-        "urgency":      urgency_out,
+        "score_reason": f"{label.upper()}: {note_str}.",
+        "urgency": urgency_out,
     }

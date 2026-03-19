@@ -1,31 +1,62 @@
+# workflows/hvac/graph.py
+from __future__ import annotations
+
 from langgraph.graph import StateGraph, END
+
 from workflows.hvac.nodes import (
-    node_check_complete,
+    node_check_completion,
     node_chat_reply,
-    node_extract_fields,
-    node_save_and_email
+    node_enrich_lead,
+    node_finalize_and_deliver,
+    node_score_lead,
+    node_validate_input,
 )
+from workflows.hvac.state import HvacState
 
-def build_hvac_chat_graph() -> StateGraph:
-    g = StateGraph(dict)
-    g.add_node("check_complete", node_check_complete)
-    g.add_node("chat_reply",     node_chat_reply)
-    g.add_node("extract_fields", node_extract_fields)
 
-    g.set_entry_point("check_complete")
-    g.add_conditional_edges(
-        "check_complete",
-        lambda state: "complete" if state.get("is_complete") else "continue",
-        {"complete": END, "continue": "chat_reply"},
-    )
-    g.add_edge("chat_reply",     "extract_fields")
-    g.add_edge("extract_fields", END)
+def _route_completion(state: dict) -> str:
+    return "complete" if state.get("is_complete") else "continue"
+
+
+def _route_post_score(state: dict) -> str:
+    if state.get("is_spam") or state.get("next_step") == "drop":
+        return "skip"
+    return "go"
+
+
+def build_hvac_chat_graph():
+    # FIX: StateGraph(dict) was the root cause of session_id=None and
+    # history_len=1. When you pass bare `dict`, LangGraph has no schema
+    # and initialises a blank state on every invocation instead of
+    # forwarding the input state to nodes.
+    # Using HvacState (a TypedDict) gives LangGraph the schema it needs
+    # while still treating state as a plain dict at runtime.
+    g = StateGraph(HvacState)
+
+    g.add_node("validate",   node_validate_input)
+    g.add_node("enrich",     node_enrich_lead)
+    g.add_node("check_done", node_check_completion)
+    g.add_node("reply",      node_chat_reply)
+
+    g.set_entry_point("validate")
+    g.add_edge("validate",   "enrich")
+    g.add_edge("enrich",     "check_done")
+    g.add_conditional_edges("check_done", _route_completion,
+                            {"complete": END, "continue": "reply"})
+    g.add_edge("reply", END)
+
     return g.compile()
 
-def build_hvac_post_chat_graph() -> StateGraph:
-    g = StateGraph(dict)
-    # Consistently use a single node for post-chat efficiency
-    g.add_node("save_and_email", node_save_and_email)
-    g.set_entry_point("save_and_email")
-    g.add_edge("save_and_email", END)
+
+def build_hvac_post_chat_graph():
+    g = StateGraph(HvacState)
+
+    g.add_node("score_lead", node_score_lead)
+    g.add_node("deliver",    node_finalize_and_deliver)
+
+    g.set_entry_point("score_lead")
+    g.add_conditional_edges("score_lead", _route_post_score,
+                            {"go": "deliver", "skip": END})
+    g.add_edge("deliver", END)
+
     return g.compile()

@@ -10,31 +10,27 @@ dependencies = [
     "orjson>=3.10.0",
     "fastapi>=0.115.0",
     "httpx>=0.28.1",
-
     # LLM stack (dual mode)
     "langchain-groq>=1.1.2",
     "langchain-ollama>=1.0.1",
     "langgraph>=1.0.10",
     "groq>=0.9.0",
-
     # Core config
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
     "python-dotenv>=1.2.2",
-
     # Logging & retries
     "structlog>=24.4.0",
     "tenacity>=9.0.0",
-
     # Database
     "sqlalchemy[asyncio]>=2.0.48",
-
     # Optional integrations (remove if unused)
     "firebase-admin>=7.2.0",
     "gspread>=6.2.1",
     "resend>=2.23.0",
     "twilio>=9.10.2",
-
     # Server
     "uvicorn[standard]>=0.30.0",
+    "google-api-python-client>=2.193.0",
+    "google-auth>=2.49.0",
 ]

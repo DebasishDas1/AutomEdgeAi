@@ -1,56 +1,83 @@
+# llm.py
 import asyncio
 import structlog
 from typing import List, Any
-from tenacity import retry, stop_after_attempt, wait_exponential
-from langchain_groq import ChatGroq
-from langchain_ollama import ChatOllama
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, SystemMessage
 from core.config import settings
 from core.cache import cache
 
 logger = structlog.get_logger(__name__)
-
-# Global concurrency guard for LLM calls (prevents event loop saturation)
 _llm_semaphore = asyncio.Semaphore(20)
+
 
 class LLMManager:
     def __init__(self):
-        self._primary = ChatGroq(
-            api_key=settings.GROQ_API_KEY,
-            model="llama-3.3-70b-versatile",
-            temperature=0.7,
-            timeout=10.0
-        ) if settings.GROQ_API_KEY else None
+        self._groq = None
+        self._ollama = None
 
-        self._fallback = ChatOllama(
-            model="qwen3:1.7b",
-            temperature=0.7,
+        if settings.GROQ_API_KEY:
+            from langchain_groq import ChatGroq
+            self._groq = ChatGroq(
+                api_key=settings.GROQ_API_KEY,
+                model="llama-3.3-70b-versatile",
+                temperature=0.3,
+                timeout=15.0,
+            )
+
+        from langchain_ollama import ChatOllama
+        self._ollama = ChatOllama(
+            model=settings.OLLAMA_MODEL or "llama3.1:8b",
+            temperature=0.1,
         )
 
-    async def ainvoke(self, messages: List[BaseMessage], **kwargs) -> Any:
-        # Context window management
-        trimmed = messages[-8:]
-        
-        # Cache check
-        key = str([m.content for m in trimmed])
-        cached = cache.get("llm", key)
-        if cached: return cached
+    def _select(self):
+        return self._groq if self._groq else self._ollama
+
+    async def ainvoke(
+        self,
+        messages: List[BaseMessage],
+        full_history: bool = False,   # NEW: skip trimming for classification calls
+        **kwargs,
+    ) -> Any:
+        system_msg = next((m for m in messages if isinstance(m, SystemMessage)), None)
+        other_msgs = [m for m in messages if not isinstance(m, SystemMessage)]
+
+        if full_history:
+            # Classification needs every turn — never trim
+            trimmed = ([system_msg] if system_msg else []) + other_msgs
+        else:
+            # Chat reply: keep last 6 turns to control token usage
+            trimmed = ([system_msg] if system_msg else []) + other_msgs[-6:]
+
+        logger.debug("llm_request",
+            model=type(self._select()).__name__,
+            msg_count=len(trimmed),
+            full_history=full_history,
+            last_user=(other_msgs[-1].content[:60] if other_msgs else ""),
+        )
+
+        key = str([(type(m).__name__, m.content) for m in trimmed])
+        if settings.ENVIRONMENT != "dev":
+            cached = cache.get("llm", key)
+            if cached:
+                return cached
 
         async with _llm_semaphore:
+            target = self._select()
             try:
-                use_groq = settings.ENVIRONMENT == "prod" and self._primary
-                target = self._primary if use_groq else self._fallback
                 resp = await self._call(target, trimmed, **kwargs)
-                cache.set("llm", key, resp, ttl=1800)
+                if settings.ENVIRONMENT != "dev":
+                    cache.set("llm", key, resp, ttl=1800)
                 return resp
-            except Exception as e:
-                logger.error("llm_error", error=str(e))
-                if target != self._fallback:
-                    return await self._call(self._fallback, trimmed, **kwargs)
+            except Exception as exc:
+                logger.error("llm_primary_failed", error=str(exc))
+                if target is not self._ollama:
+                    logger.warning("llm_fallback_to_ollama")
+                    return await self._call(self._ollama, trimmed, **kwargs)
                 raise
 
-    @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=1, max=4))
-    async def _call(self, llm, msgs, **kwargs):
-        return await asyncio.wait_for(llm.ainvoke(msgs, **kwargs), timeout=12.0)
+    async def _call(self, model, msgs, **kwargs):
+        return await asyncio.wait_for(model.ainvoke(msgs, **kwargs), timeout=15.0)
+
 
 llm = LLMManager()

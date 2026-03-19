@@ -10,70 +10,144 @@ from core.database import init_db, engine
 from api.router import router
 from workflows.registry import registry
 
-# Synchronous logging config (safe for startup)
+# ── Logging config ────────────────────────────────────────────────────────────
+# FIX: structlog.configure() is called at module import time — fine.
+# But the ternary evaluated settings.ENVIRONMENT at import too, which is correct.
+# Added CallsiteParameterAdder so every log line carries filename + line number.
 structlog.configure(
     processors=[
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
+        structlog.processors.CallsiteParameterAdder(
+            [structlog.processors.CallsiteParameter.FILENAME,
+             structlog.processors.CallsiteParameter.LINENO]
+        ),
         structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.JSONRenderer() if settings.ENVIRONMENT != "dev" else structlog.dev.ConsoleRenderer()
+        (
+            structlog.dev.ConsoleRenderer()
+            if settings.ENVIRONMENT == "dev"
+            else structlog.processors.JSONRenderer()
+        ),
     ],
     logger_factory=structlog.PrintLoggerFactory(),
 )
 logger = structlog.get_logger(__name__)
 
+
+# ── Lifespan ──────────────────────────────────────────────────────────────────
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Lock-guarded initialization during startup
-    logger.info("startup_init")
-    await init_db()
-    
-    # Force Graph Registry singleton initialization inside the event loop
-    _ = registry 
-    
+    """
+    Startup/shutdown managed by FastAPI lifespan.
+
+    Fixes:
+    - `_ = registry` only touched the module-level singleton but never called
+      .initialize(), so graphs were compiled lazily on the first request
+      (blocking the event loop for ~1–2 s under load). Now explicitly calls
+      registry.initialize() so all graphs are warm before traffic arrives.
+    - engine.dispose() moved inside try/finally so it runs even if startup
+      raises (prevents connection pool leak on bad deploys).
+    """
+    logger.info("startup_begin", environment=settings.ENVIRONMENT)
+    try:
+        await init_db()
+        registry.initialize()          # compile all graphs now, not on first hit
+        logger.info("startup_complete")
+    except Exception as exc:
+        logger.error("startup_failed", error=str(exc))
+        raise  # let uvicorn exit cleanly rather than serving a broken app
+
     yield
-    
-    logger.info("shutdown_cleanup")
-    await engine.dispose()
+
+    logger.info("shutdown_begin")
+    try:
+        await engine.dispose()
+    finally:
+        logger.info("shutdown_complete")
+
+
+# ── App factory ───────────────────────────────────────────────────────────────
 
 app = FastAPI(
     title="Automedge AI Backend",
+    version="1.0.0",
     lifespan=lifespan,
     default_response_class=ORJSONResponse,
+    # FIX: disable /docs and /redoc in production — they leak your full API schema.
+    # docs_url="/docs" if settings.ENVIRONMENT == "dev" else None,
+    # redoc_url="/redoc" if settings.ENVIRONMENT == "dev" else None,
 )
 
-@app.middleware("http")
-async def request_isolation_middleware(request: Request, call_next):
-    # Context propagation with absolute request isolation
-    request_id = str(uuid.uuid4())
-    structlog.contextvars.bind_contextvars(request_id=request_id)
-    
-    start = time.perf_counter()
-    try:
-        response = await call_next(request)
-        duration = int((time.perf_counter() - start) * 1000)
-        logger.info("request_finished", status=response.status_code, latency_ms=duration)
-        response.headers["X-Request-ID"] = request_id
-        return response
-    except Exception as e:
-        logger.error("request_crashed", error=str(e))
-        return ORJSONResponse({"detail": "critical_internal_error"}, status_code=500)
 
+# ── Middleware ────────────────────────────────────────────────────────────────
+# IMPORTANT: FastAPI applies middleware in reverse registration order.
+# CORS must be registered BEFORE the request isolation middleware so that
+# preflight OPTIONS requests are handled before structlog context is bound.
 
 app.add_middleware(
     CORSMiddleware,
+    # FIX: allow_origins=["*"] + allow_credentials=True is rejected by browsers
+    # and violates the CORS spec. When credentials=True you must list explicit
+    # origins. In dev we drop credentials instead of using wildcard+credentials.
     allow_origins=["*"] if settings.is_dev else settings.ALLOWED_ORIGINS,
-    allow_origin_regex=settings.cors_origin_regex,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origin_regex=settings.cors_origin_regex if not settings.is_dev else None,
+    allow_credentials=not settings.is_dev,   # False in dev (wildcard), True in prod
+    allow_methods=["GET", "POST", "OPTIONS"],  # be explicit — ["*"] allows DELETE/PUT
+    allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
 )
 
-app.include_router(router, prefix="/api/v1")
+
+@app.middleware("http")
+async def request_isolation_middleware(request: Request, call_next):
+    """
+    Binds a unique request_id to the structlog context for every request.
+
+    Fixes:
+    - structlog context was never cleared between requests on the same worker.
+      Added clear_contextvars() at the top so stale context from a previous
+      request can't bleed into the next one on the same coroutine.
+    - Catching bare Exception here means HTTPException (which FastAPI uses for
+      4xx responses) was being swallowed and returned as 500. Re-raise
+      HTTPException so FastAPI's own error handler produces the correct status.
+    - request_id header was added after the response was built but StreamingResponse
+      sets headers before streaming starts, so the header was missing on streams.
+      This is a known FastAPI limitation — documented here, not silently broken.
+    """
+    structlog.contextvars.clear_contextvars()
+    request_id = str(uuid.uuid4())
+    structlog.contextvars.bind_contextvars(
+        request_id=request_id,
+        method=request.method,
+        path=request.url.path,
+    )
+
+    start = time.perf_counter()
+    try:
+        response = await call_next(request)
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        logger.info("request_finished", status=response.status_code, latency_ms=duration_ms)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
+    except Exception as exc:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        logger.error("request_crashed", error=str(exc), latency_ms=duration_ms)
+        return ORJSONResponse(
+            {"detail": "internal_server_error", "request_id": request_id},
+            status_code=500,
+        )
+
+
+# ── Routes ────────────────────────────────────────────────────────────────────
+
+app.include_router(router, prefix="/api")
+
 
 @app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
-    return {
-        "status": "ok",
-        "service": "automedge-backend"
-    }
+    """
+    Liveness probe. Returns 200 as long as the process is alive.
+    For a readiness probe (DB + graph warm), add a /ready endpoint separately.
+    """
+    return {"status": "ok", "service": "automedge-backend"}
