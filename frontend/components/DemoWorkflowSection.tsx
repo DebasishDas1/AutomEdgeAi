@@ -9,6 +9,7 @@ import {
   Zap,
   ChevronDown,
   Webhook,
+  ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
 import { memo } from "react";
@@ -51,7 +52,7 @@ const DemoCard = memo(({ index, demo }: any) => {
   const Icon = demo.icon;
 
   return (
-    <Link href={href} className="group block relative h-full">
+    <Link href={href} scroll={true} className="group block relative h-full">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -59,35 +60,37 @@ const DemoCard = memo(({ index, demo }: any) => {
         transition={{ delay: index * 0.1, duration: 0.6 }}
         className="relative h-full"
       >
-        {/* Ambient Golden Glow (Hover Only) */}
-        <div className="absolute -inset-2 bg-linear-to-br from-amber-500/20 to-yellow-500/10 rounded-[3rem] blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10" />
+        {/* EXTERNAL CARD GLOW (Outside Card) */}
+        <div className="absolute -inset-4 bg-amber-500/5 rounded-[3rem] blur-3xl opacity-0 group-hover:opacity-100 transition-all duration-700 -z-10" />
 
-        <div className="relative h-full p-10 rounded-[2.5rem] border-2 border-border/50 bg-card/60 backdrop-blur-3xl hover:border-amber-500/40 transition-all duration-500 shadow-sm hover:shadow-2xl flex flex-col items-center text-center overflow-hidden">
-          {/* Internal Shimmer/Light Beam */}
-          <div className="absolute top-0 right-0 w-full h-full bg-linear-to-bl from-amber-500/5 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        <div className="relative h-full p-8 rounded-[2.5rem] border border-slate-200 dark:border-white/5 bg-white dark:bg-slate-950/40 backdrop-blur-3xl transition-all duration-500 shadow-xl group-hover:shadow-[0_20px_60px_-15px_rgba(245,158,11,0.25)] flex flex-col items-center text-center">
+          {/* Step Icon HUB (Clean look, no individual outside shadow) */}
+          <div className="relative mb-8 w-24 h-24">
+            {/* Icon Card */}
+            <div className="relative w-24 h-24 rounded-[32px] bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 flex items-center justify-center transition-all duration-500 group-hover:-translate-y-2 group-hover:rotate-3 group-hover:bg-white dark:group-hover:bg-slate-800">
+              <Icon
+                size={36}
+                className="text-amber-500 transition-transform duration-500 group-hover:scale-110"
+              />
 
-          {/* Icon Container with Golden Treatment */}
-          <div className="mb-10 relative">
-            <div className="w-24 h-24 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500 group-hover:bg-amber-500 group-hover:text-black transition-all duration-500 shadow-inner group-hover:shadow-[0_0_30px_rgba(245,158,11,0.4)]">
-              <Icon className="w-12 h-12" />
+              {/* Interior gradient shine on hover */}
+              <div className="absolute inset-0 bg-linear-to-br from-amber-400 to-yellow-500 opacity-0 group-hover:opacity-8 rounded-[32px] transition-opacity" />
             </div>
-            {/* Subtle puls ring around icon */}
-            <div className="absolute -inset-2 rounded-2xl border border-amber-500/20 animate-ping [animation-duration:3s] opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
 
           <div className="space-y-4 relative z-10">
-            <h3 className="text-4xl font-outfit font-black leading-tight tracking-tighter text-amber-500 dark:text-amber-400">
+            <h3 className="text-3xl font-outfit font-black leading-tight tracking-tighter text-slate-800 dark:text-white transition-colors group-hover:text-amber-500">
               {title}
             </h3>
-            <p className="text-xl text-muted-foreground leading-relaxed font-semibold opacity-70 group-hover:opacity-100 transition-opacity max-w-[280px]">
+            <p className="text-[17px] text-slate-500 dark:text-slate-400 leading-relaxed font-semibold opacity-80 max-w-[280px]">
               {description}
             </p>
           </div>
 
           {/* Bottom Call to Action */}
-          <div className="mt-8 flex items-center gap-2 text-amber-600 dark:text-amber-500 font-black uppercase tracking-[0.2em] text-[10px] transform translate-y-2 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transition-all">
-            Open Workflow Demo
-            <Zap className="w-3 h-3 fill-current" />
+          <div className="mt-8 flex items-center gap-2 text-amber-500 font-black uppercase tracking-[0.2em] text-[10px] transform translate-y-2 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transition-all">
+            Explore {title} Solution
+            <ArrowRight className="w-4 h-4" />
           </div>
         </div>
       </motion.div>
@@ -117,59 +120,59 @@ export function DemoWorkflowSection() {
       className="py-32 px-6 max-w-7xl mx-auto overflow-hidden relative"
     >
       {/* Background decoration */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-[radial-gradient(circle_at_center,var(--tw-gradient-stops))] from-accent/5 via-transparent to-transparent -z-10" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-[radial-gradient(circle_at_center,var(--tw-gradient-stops))] from-amber-500/5 via-transparent to-transparent -z-10" />
 
       {/* Header */}
       <div className="text-center mb-20">
-        <div className="inline-flex items-center gap-2 bg-accent/10 px-4 py-2 rounded-full text-accent font-black text-xs uppercase tracking-widest mb-6">
-          <Zap className="w-3.5 h-3.5" />
-          The Engine
+        <div className="inline-flex items-center gap-2 bg-amber-500/10 px-4 py-2 rounded-full text-amber-500 font-black text-xs uppercase tracking-widest mb-6 border border-amber-500/20">
+          <Zap className="w-3.5 h-3.5 fill-current" />
+          The Industry Engine
         </div>
-        <h2 className="text-5xl md:text-7xl font-outfit font-black mb-6 tracking-tighter leading-none">
+        <h2 className="text-5xl md:text-7xl font-outfit font-black mb-6 tracking-tighter leading-none text-slate-900 dark:text-white">
           See the AI in{" "}
           <span className="text-accent underline decoration-accent/20 decoration-8 underline-offset-8">
             Action
           </span>
         </h2>
 
-        <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed font-medium">
-          Watch how our platform automatically captures, qualifies,{" "}
-          <br className="hidden md:block" />
-          and books leads in under 60 seconds.
+        <p className="text-xl text-slate-500 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed font-semibold opacity-80">
+          Tailored workflows for every home service niche. Capture, qualify, and
+          book in 60 seconds.
         </p>
       </div>
 
       {/* Layout */}
       <div className="flex flex-col items-center gap-8 relative">
         {/* Connection Line */}
-        <div className="absolute top-10 bottom-40 w-px bg-linear-to-b from-accent/20 via-accent/40 to-transparent -z-10" />
+        <div className="absolute top-10 bottom-40 w-px bg-linear-to-b from-amber-500/20 via-amber-500/40 to-transparent -z-10" />
 
         {/* Trigger */}
         <Node label="New Inquiry">
-          <div className="w-16 h-16 rounded-[1.25rem] border-2 border-border/50 bg-background shadow-xl flex items-center justify-center hover:scale-110 transition-transform cursor-help">
-            <Webhook className="w-7 h-7 text-muted-foreground/60" />
-            <div className="absolute -top-1 -right-1 w-4 h-4 bg-accent rounded-full animate-ping" />
-            <div className="absolute -top-1 -right-1 w-4 h-4 bg-accent rounded-full" />
+          <div className="w-16 h-16 rounded-[1.25rem] border-2 border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 shadow-xl flex items-center justify-center hover:scale-110 transition-transform cursor-help">
+            <Webhook className="w-7 h-7 text-cta opacity-60" />
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-cta-foreground rounded-full animate-ping" />
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-cta-foreground rounded-full" />
           </div>
         </Node>
 
-        <div className="p-2 bg-background rounded-full border-2 border-border/50 shadow-sm">
-          <ChevronDown className="w-5 h-5 text-accent animate-bounce" />
+        <div className="p-2 bg-white dark:bg-slate-900 rounded-full border border-slate-200 dark:border-white/10 shadow-sm">
+          <ChevronDown className="w-5 h-5 text-amber-500 animate-bounce" />
         </div>
 
         {/* AI */}
-        <Node label="AI Agent">
-          <div className="w-24 h-24 rounded-2xl bg-accent/10 flex items-center justify-center">
-            <Zap className="w-10 h-10 text-accent" />
+        <Node label="AutomEdge AI Core">
+          <div className="w-24 h-24 rounded-3xl bg-accent/10 border border-accent/20 flex items-center justify-center relative shadow-2xl shadow-accent/10">
+            <Zap className="w-10 h-10 text-accent fill-accent" />
+            <div className="absolute -inset-2 bg-accent/10 blur-xl rounded-full -z-10" />
           </div>
         </Node>
 
-        <div className="p-2 bg-background rounded-full border-2 border-border/50 shadow-sm mb-4">
-          <ChevronDown className="w-5 h-5 text-accent animate-bounce [animation-delay:200ms]" />
+        <div className="p-2 bg-white dark:bg-slate-900 rounded-full border border-slate-200 dark:border-white/10 shadow-sm mb-8">
+          <ChevronDown className="w-5 h-5 text-amber-500 animate-bounce [animation-delay:200ms]" />
         </div>
 
         {/* Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 w-full max-w-5xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8 w-full max-w-5xl">
           {DEMOS.map((demo, index) => (
             <DemoCard key={demo.id} demo={demo} index={index} />
           ))}

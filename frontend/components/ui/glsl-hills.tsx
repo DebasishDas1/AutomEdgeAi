@@ -20,17 +20,17 @@ const GLSLHills = ({
   speed = 0.5,
 }: GLSLHillsProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Plane class
     class Plane {
-      uniforms: { time: { type: string; value: number } };
+      uniforms: any;
       mesh: THREE.Mesh;
       time: number;
+
       constructor() {
         this.uniforms = {
-          time: { type: "f", value: 0 },
+          time: { value: 0 },
+          isDark: { value: 0 },
         };
         this.mesh = this.createMesh();
         this.time = speed;
@@ -41,8 +41,8 @@ const GLSLHills = ({
           new THREE.PlaneGeometry(planeSize, planeSize, planeSize, planeSize),
           new THREE.RawShaderMaterial({
             uniforms: this.uniforms,
+
             vertexShader: `
-              #define GLSLIFY 1
               attribute vec3 position;
               uniform mat4 projectionMatrix;
               uniform mat4 modelViewMatrix;
@@ -71,6 +71,7 @@ const GLSLHills = ({
                 Pi1 = mod289(Pi1);
                 vec3 Pf0 = fract(P);
                 vec3 Pf1 = Pf0 - vec3(1.0);
+
                 vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x);
                 vec4 iy = vec4(Pi0.yy, Pi1.yy);
                 vec4 iz0 = Pi0.zzzz;
@@ -105,12 +106,13 @@ const GLSLHills = ({
                 vec3 g011 = vec3(gx1.z,gy1.z,gz1.z);
                 vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
 
-                vec4 norm0 = taylorInvSqrt(vec4(dot(g000, g000), dot(g010, g010), dot(g100, g100), dot(g110, g110)));
+                vec4 norm0 = taylorInvSqrt(vec4(dot(g000,g000), dot(g010,g010), dot(g100,g100), dot(g110,g110)));
                 g000 *= norm0.x;
                 g010 *= norm0.y;
                 g100 *= norm0.z;
                 g110 *= norm0.w;
-                vec4 norm1 = taylorInvSqrt(vec4(dot(g001, g001), dot(g011, g011), dot(g101, g101), dot(g111, g111)));
+
+                vec4 norm1 = taylorInvSqrt(vec4(dot(g001,g001), dot(g011,g011), dot(g101,g101), dot(g111,g111)));
                 g001 *= norm1.x;
                 g011 *= norm1.y;
                 g101 *= norm1.z;
@@ -126,37 +128,69 @@ const GLSLHills = ({
                 float n111 = dot(g111, Pf1);
 
                 vec3 fade_xyz = fade(Pf0);
-                vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
+                vec4 n_z = mix(vec4(n000,n100,n010,n110), vec4(n001,n101,n011,n111), fade_xyz.z);
                 vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
                 float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x);
                 return 2.2 * n_xyz;
               }
 
               void main(void) {
-                vec3 updatePosition = (rotateMatrixX(radians(90.0)) * vec4(position, 1.0)).xyz;
-                float sin1 = sin(radians(updatePosition.x / 128.0 * 90.0));
-                vec3 noisePosition = updatePosition + vec3(0.0, 0.0, time * -30.0);
-                float noise1 = cnoise(noisePosition * 0.08);
-                float noise2 = cnoise(noisePosition * 0.06);
-                float noise3 = cnoise(noisePosition * 0.4);
-                vec3 lastPosition = updatePosition + vec3(0.0,
-                  noise1 * sin1 * 8.0
-                  + noise2 * sin1 * 8.0
-                  + noise3 * (abs(sin1) * 2.0 + 0.5)
-                  + pow(sin1, 2.0) * 40.0, 0.0);
+                vec3 pos = (rotateMatrixX(radians(90.0)) * vec4(position, 1.0)).xyz;
 
-                vPosition = lastPosition;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(lastPosition, 1.0);
+                float sin1 = sin(radians(pos.x / 128.0 * 90.0));
+                vec3 noisePos = pos + vec3(0.0, 0.0, time * -30.0);
+
+                float n1 = cnoise(noisePos * 0.08);
+                float n2 = cnoise(noisePos * 0.06);
+                float n3 = cnoise(noisePos * 0.4);
+
+                vec3 finalPos = pos + vec3(0.0,
+                  n1 * sin1 * 8.0 +
+                  n2 * sin1 * 8.0 +
+                  n3 * (abs(sin1) * 2.0 + 0.5) +
+                  pow(sin1, 2.0) * 60.0,
+                0.0);
+
+                vPosition = finalPos;
+
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(finalPos, 1.0);
               }
             `,
+
             fragmentShader: `
               precision highp float;
-              #define GLSLIFY 1
+
               varying vec3 vPosition;
+              uniform float isDark;
 
               void main(void) {
-                float opacity = (96.0 - length(vPosition)) / 256.0 * 0.6;
-                vec3 color = vec3(0.6);
+                float dist = length(vPosition);
+                float opacity = (96.0 - dist) / 256.0;
+
+                float h = vPosition.y * 0.02;
+
+                vec3 lightColor = mix(
+                  vec3(0.2, 0.35, 0.6),   // deeper blue (visible)
+                  vec3(0.05, 0.15, 0.35), // dark navy
+                  h
+                );
+
+                vec3 darkColor = mix(
+                  vec3(0.0, 1.0, 0.7),
+                  vec3(0.0, 0.4, 1.0),
+                  h
+                );
+
+                vec3 color = mix(lightColor, darkColor, isDark);
+
+                if (isDark > 0.5) {
+                  opacity *= 1.8;
+                } else {
+                  opacity *= 2.4;
+                }
+
+                opacity *= smoothstep(120.0, 20.0, dist);
+
                 gl_FragColor = vec4(color, opacity);
               }
             `,
@@ -165,18 +199,18 @@ const GLSLHills = ({
         );
       }
 
-      render(time: number) {
-        this.uniforms.time.value += time * this.time;
+      render(delta: number) {
+        this.uniforms.time.value += delta * this.time;
       }
     }
 
     if (!canvasRef.current) return;
 
-    // Three.js setup
     const renderer = new THREE.WebGLRenderer({
       canvas: canvasRef.current,
       antialias: false,
     });
+
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(
       45,
@@ -184,63 +218,66 @@ const GLSLHills = ({
       1,
       10000,
     );
-    const timer = new THREE.Timer();
+
+    const timer = new THREE.Clock();
     const plane = new Plane();
 
+    // 🌗 detect theme
+    const setTheme = () => {
+      const isDark = document.documentElement.classList.contains("dark");
+      plane.uniforms.isDark.value = isDark ? 1 : 0;
+    };
+
+    setTheme();
+
     const resize = () => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      camera.aspect = window.innerWidth / window.innerHeight;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      camera.aspect = w / h;
       camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setSize(w, h);
     };
 
     const render = () => {
-      timer.update();
-      plane.render(timer.getDelta());
+      const delta = timer.getDelta();
+      plane.render(delta);
       renderer.render(scene, camera);
     };
 
-    let animationFrameId: number;
-    const renderLoop = () => {
+    let raf: number;
+
+    const loop = () => {
       render();
-      animationFrameId = requestAnimationFrame(renderLoop);
+      raf = requestAnimationFrame(loop);
     };
 
     const init = () => {
-      renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setClearColor(0x000000, 0);
       camera.position.set(0, 16, cameraZ);
       camera.lookAt(new THREE.Vector3(0, 28, 0));
+
       scene.add(plane.mesh);
+
       window.addEventListener("resize", resize);
       resize();
-      renderLoop();
+      loop();
     };
 
     init();
 
     return () => {
       window.removeEventListener("resize", resize);
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
+      cancelAnimationFrame(raf);
     };
   }, [cameraZ, planeSize, speed]);
 
   return (
-    <div ref={containerRef} style={{ position: "relative", width, height }}>
+    <div style={{ position: "relative", width, height }}>
       <canvas
         ref={canvasRef}
         style={{
           position: "absolute",
-          top: 0,
-          right: 0,
-          bottom: 0,
-          left: 0,
-          zIndex: 1,
+          inset: 0,
         }}
       />
     </div>

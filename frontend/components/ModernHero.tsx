@@ -11,14 +11,16 @@ const badges = ["14 day setup", "No long contracts", "Works with your CRM"];
 export const ModernHero = () => {
   const { goTo } = useDomainNavigation();
   return (
-    <div className="relative flex h-full min-h-[800px] w-full flex-col items-center justify-center overflow-hidden">
-      <GLSLHills />
+    <section className="relative pt-24 md:pt-28 min-h-[720px] md:min-h-[880px] lg:min-h-[95vh] w-full flex flex-col items-center justify-center overflow-hidden bg-background transition-colors duration-500">
+      <div className="absolute inset-0 z-0">
+        <GLSLHills />
+      </div>
       <div className="space-y-8 z-10 text-center absolute px-6">
         <h1 className="font-semibold text-5xl md:text-7xl whitespace-pre-wrap leading-tight tracking-tighter">
           <span className="italic text-4xl md:text-6xl font-thin block mb-2 opacity-80">
             Stop Losing Jobs
           </span>
-          to Slow Follow-Up
+          to <span className="text-accent">Slow Follow-Up</span>
         </h1>
         <p className="text-lg md:text-xl text-primary/60 max-w-2xl mx-auto leading-relaxed font-medium">
           AutomEdge responds to every HVAC lead in under 60 seconds — qualifies,
@@ -62,6 +64,19 @@ export const ModernHero = () => {
           ))}
         </div>
       </div>
-    </div>
+      <div
+        className="
+          pointer-events-none
+          absolute bottom-0 left-0 w-full
+          h-[140px] md:h-[180px] lg:h-[220px]
+          bg-linear-to-t
+          from-background
+          via-background/70
+          to-transparent
+          backdrop-blur-[2px]
+          z-20
+        "
+      />
+    </section>
   );
 };

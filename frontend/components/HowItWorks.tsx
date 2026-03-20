@@ -1,65 +1,194 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Zap,
+  Bot,
+  CalendarCheck2,
+  ArrowRight,
+  ArrowDown,
+  MousePointerClick,
+  Clock,
+  Star,
+} from "lucide-react";
 
 const steps = [
   {
-    number: "1",
-    title: "Lead comes in",
-    description: "Web form, phone call, or ad click — any source",
+    number: "01",
+    icon: MousePointerClick,
+    title: "Lead Capture",
+    description: "Multi-source lead ingestion from web forms, ads, and voice calls.",
+    color: "from-amber-400 to-yellow-500",
+    shadow: "shadow-amber-400/20",
+    iconColor: "text-amber-500",
   },
   {
-    number: "2",
-    title: "AI responds in 60s",
-    description: "Texts them, qualifies issue, checks urgency",
+    number: "02",
+    icon: Bot,
+    title: "AI Analysis",
+    description: "Instant qualification and triage based on urgency and issue type.",
+    color: "from-amber-400 to-yellow-500",
+    shadow: "shadow-amber-400/20",
+    iconColor: "text-amber-500",
   },
   {
-    number: "3",
-    title: "Job booked",
-    description: "Appointment in your calendar. Done.",
+    number: "03",
+    icon: CalendarCheck2,
+    title: "Smart Booking",
+    description: "Deep CRM integration for real-time calendar availability and booking.",
+    color: "from-amber-400 to-yellow-500",
+    shadow: "shadow-amber-400/20",
+    iconColor: "text-amber-500",
+  },
+  {
+    number: "04",
+    icon: Clock,
+    title: "Auto Follow-up",
+    description: "Multi-touch nurturing for leads who aren't ready to book immediately.",
+    color: "from-amber-400 to-yellow-500",
+    shadow: "shadow-amber-400/20",
+    iconColor: "text-amber-500",
+  },
+  {
+    number: "05",
+    icon: Star,
+    title: "Review Gen",
+    description: "Post-job satisfaction checks and automated Google review requests.",
+    color: "from-amber-400 to-yellow-500",
+    shadow: "shadow-amber-400/20",
+    iconColor: "text-amber-500",
   },
 ];
 
 export const HowItWorks = () => {
   return (
-    <section className="px-6" id="how-it-works">
-      <div className="text-center mb-20">
-        <motion.h2
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-5xl md:text-7xl font-outfit font-extrabold leading-tight mb-6 tracking-tighter"
-        >
-          From lead to booked job — automatically.
-        </motion.h2>
+    <section className="relative py-32 px-6 overflow-hidden" id="how-it-works">
+      {/* Background Decorators */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full pointer-events-none -z-10">
+        <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-accent/5 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-emerald-500/5 rounded-full blur-[100px] animate-pulse delay-700" />
       </div>
 
-      <Card className="relative max-w-5xl mx-auto shadow-lg p-12 rounded-3xl border-none">
-        <CardContent className="relative">
-          {/* connecting line */}
-          <div className="hidden md:block absolute top-8 left-16 right-16 h-[2px] bg-border z-0" />
+      <div className="max-w-[1400px] mx-auto">
+        <div className="text-center mb-24">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 mb-8"
+          >
+            <Zap size={14} className="text-accent fill-accent" />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-accent">
+              Our Process
+            </span>
+          </motion.div>
 
-          <div className="grid md:grid-cols-3 gap-10 relative z-10">
-            {steps.map((step) => (
-              <div
-                key={step.number}
-                className="flex flex-col items-center text-center"
-              >
-                {/* number circle */}
-                <div className="flex items-center justify-center w-16 h-16 rounded-full bg-accent text-accent-foreground font-bold text-xl mb-4">
-                  {step.number}
+          <motion.h2
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-5xl md:text-7xl font-outfit font-black leading-[1.1] mb-8 tracking-tighter text-slate-900 dark:text-white"
+          >
+            The lead lifecycle, <br />
+            <span className="text-transparent bg-clip-text bg-linear-to-r from-accent to-emerald-500">
+              completely automated.
+            </span>
+          </motion.h2>
+
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.1 }}
+            className="text-lg md:text-xl text-slate-500 dark:text-slate-400 max-w-2xl mx-auto font-medium"
+          >
+            Stop losing jobs to slow replies. Our AI handles every stage from
+            capture to follow-up and reviews.
+          </motion.p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-y-16 lg:gap-8 relative items-start">
+          {/* Connecting Line removed as requested */}
+
+          {steps.map((step, i) => (
+            <motion.div
+              key={step.number}
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1, duration: 0.6 }}
+              className="group relative"
+            >
+              <div className="flex flex-col items-center">
+                {/* Step Icon & Number Hub */}
+                <div className="relative mb-10 w-24 h-24">
+                  {/* Outer Glow */}
+                  <div
+                    className={`absolute -inset-2 bg-linear-to-br ${step.color} rounded-[32px] blur-xl opacity-0 group-hover:opacity-25 transition-all duration-500`}
+                  />
+
+                  {/* Icon Card */}
+                  <div
+                    className={`relative w-24 h-24 rounded-[32px] bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 ${step.shadow} flex items-center justify-center transition-all duration-500 group-hover:-translate-y-2 group-hover:rotate-3 group-hover:bg-white dark:group-hover:bg-slate-800 shadow-xl`}
+                  >
+                    <step.icon
+                      size={32}
+                      className={`${step.iconColor} transition-transform duration-500 group-hover:scale-110`}
+                    />
+
+                    {/* Interior gradient shine on hover */}
+                    <div
+                      className={`absolute inset-0 bg-linear-to-br ${step.color} opacity-0 group-hover:opacity-5 rounded-[32px] transition-opacity`}
+                    />
+                  </div>
+
+                  {/* Number Badge */}
+                  <div className="absolute -top-3 -right-3 w-10 h-10 rounded-full bg-slate-900 dark:bg-white flex items-center justify-center border-4 border-slate-100 dark:border-slate-950 shadow-xl z-10 transition-transform duration-500 group-hover:scale-110">
+                    <span className="text-[11px] font-black text-white dark:text-slate-950 tracking-tighter">
+                      {step.number}
+                    </span>
+                  </div>
                 </div>
 
-                <h3 className="font-semibold text-lg mb-2">{step.title}</h3>
+                <div className="text-center px-4 space-y-4">
+                  <h3 className="text-xl font-outfit font-black text-slate-900 dark:text-white tracking-tight leading-tight">
+                    {step.title}
+                  </h3>
+                  <p className="text-[14px] text-slate-500 dark:text-slate-400 leading-relaxed font-semibold opacity-80">
+                    {step.description}
+                  </p>
+                </div>
 
-                <p className="text-muted-foreground text-sm">
-                  {step.description}
-                </p>
+                {/* ARROW DECORATORS (Adaptive) */}
+                {i < steps.length - 1 && (
+                  <div className="relative lg:absolute lg:-right-8 lg:top-[100px] mt-8 lg:mt-0 z-20 flex items-center justify-center">
+                    {/* Desktop Arrow */}
+                    <div className="hidden lg:block text-amber-400 transition-colors">
+                      <ArrowRight
+                        size={32}
+                        strokeWidth={3}
+                        className="drop-shadow-[0_2px_4px_rgba(251,191,36,0.3)]"
+                      />
+                    </div>
+                    {/* Mobile Arrow */}
+                    <div className="lg:hidden text-amber-400 flex flex-col items-center gap-2">
+                      <div className="w-[2px] h-8 bg-linear-to-b from-transparent via-amber-400/50 to-amber-400 rounded-full" />
+                      <ArrowDown
+                        size={28}
+                        strokeWidth={3}
+                        className="drop-shadow-[0_2px_4px_rgba(251,191,36,0.3)]"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+
+              {/* Hover Glow Plate */}
+              <div className="absolute inset-0 bg-amber-400/5 rounded-[40px] opacity-0 group-hover:opacity-100 transition-all duration-500 -z-10 blur-xl scale-95 group-hover:scale-105" />
+            </motion.div>
+          ))}
+        </div>
+      </div>
     </section>
   );
 };
