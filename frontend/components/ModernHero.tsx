@@ -1,10 +1,18 @@
 "use client";
 
-import { GLSLHills } from "@/components/ui/glsl-hills";
+import dynamic from "next/dynamic";
 import { Zap, Check, Video } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useDomainNavigation } from "@/hook/useDomainNavigation";
 import Link from "next/link";
+
+const GLSLHills = dynamic(
+  () => import("@/components/ui/glsl-hills").then((mod) => mod.GLSLHills),
+  {
+    ssr: false,
+    loading: () => <div className="absolute inset-0 bg-background" />,
+  },
+);
 
 const badges = ["14 day setup", "No long contracts", "Works with your CRM"];
 
@@ -68,7 +76,7 @@ export const ModernHero = () => {
         className="
           pointer-events-none
           absolute bottom-0 left-0 w-full
-          h-[140px] md:h-[180px] lg:h-[220px]
+          h-[100px] md:h-[140px] lg:h-[180px]
           bg-linear-to-t
           from-background
           via-background/70

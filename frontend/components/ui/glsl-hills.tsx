@@ -219,7 +219,7 @@ const GLSLHills = ({
       10000,
     );
 
-    const timer = new THREE.Clock();
+    const timer = new (THREE as any).Timer();
     const plane = new Plane();
 
     // 🌗 detect theme
@@ -239,6 +239,7 @@ const GLSLHills = ({
     };
 
     const render = () => {
+      timer.update();
       const delta = timer.getDelta();
       plane.render(delta);
       renderer.render(scene, camera);
@@ -268,6 +269,13 @@ const GLSLHills = ({
     return () => {
       window.removeEventListener("resize", resize);
       cancelAnimationFrame(raf);
+      renderer.dispose();
+      plane.mesh.geometry.dispose();
+      if (Array.isArray(plane.mesh.material)) {
+        plane.mesh.material.forEach((m: any) => m.dispose());
+      } else {
+        plane.mesh.material.dispose();
+      }
     };
   }, [cameraZ, planeSize, speed]);
 

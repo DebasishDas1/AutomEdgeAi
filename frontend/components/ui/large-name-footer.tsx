@@ -45,7 +45,6 @@ export function Footer() {
                 alt="AutomEdge logo"
                 fill
                 sizes="200px"
-                priority
                 className="object-contain dark:hidden select-none"
               />
               <Image
@@ -53,7 +52,6 @@ export function Footer() {
                 alt="AutomEdge logo"
                 fill
                 sizes="200px"
-                priority
                 className="object-contain hidden dark:block select-none"
               />
             </Link>
