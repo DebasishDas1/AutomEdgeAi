@@ -1,12 +1,28 @@
+import dynamic from "next/dynamic";
 import { Metadata } from "next";
-import Chatbot from "@/components/shared/Chatbot";
+
+// Above the fold - static
 import { DemoPageNavbar } from "@/components/shared/DemoPageNavbar";
 import { DemoPageHero } from "@/components/shared/DemoPageHero";
 import { DemoPageFooter } from "@/components/shared/DemoPageFooter";
-import { DemoFullSystem } from "@/components/shared/DemoFullSystem";
-import { RoiCalculator } from "@/components/shared/RoiCalculator";
-import { FAQSection } from "@/components/FAQSection";
-import { DemoPageCalendar } from "@/components/shared/DemoPageCalendar";
+import { ChatbotWrapper } from "@/components/shared/ChatbotWrapper";
+
+const DemoFullSystem = dynamic(() =>
+  import("@/components/shared/DemoFullSystem").then(
+    (mod) => mod.DemoFullSystem,
+  ),
+);
+const RoiCalculator = dynamic(() =>
+  import("@/components/shared/RoiCalculator").then((mod) => mod.RoiCalculator),
+);
+const FAQSection = dynamic(() =>
+  import("@/components/FAQSection").then((mod) => mod.FAQSection),
+);
+const DemoPageCalendar = dynamic(() =>
+  import("@/components/shared/DemoPageCalendar").then(
+    (mod) => mod.DemoPageCalendar,
+  ),
+);
 
 export const metadata: Metadata = {
   title: "See AI Book Pest Control Jobs in 60 Seconds — Live Demo | AutomEdge",
@@ -160,7 +176,7 @@ and books the treatment. See it live below."
 
       <DemoPageFooter />
 
-      <Chatbot vertical="pest_control" />
+      <ChatbotWrapper vertical="pest_control" />
     </main>
   );
 }

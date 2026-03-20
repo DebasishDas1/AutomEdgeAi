@@ -66,8 +66,13 @@ export const DemoPageNavbar = () => {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 lg:px-8">
           {/* Logo */}
           <div className="flex items-center gap-8">
-            <a
-              onClick={() => goHome()}
+            <Link
+              href="/"
+              onClick={(e) => {
+                // Optional: only override if using subdomains
+                e.preventDefault();
+                goHome();
+              }}
               className="relative flex items-center w-[140px] h-[40px] cursor-pointer hover:opacity-80 transition-opacity"
             >
               <Image
@@ -86,7 +91,7 @@ export const DemoPageNavbar = () => {
                 priority
                 className="object-contain hidden dark:block select-none"
               />
-            </a>
+            </Link>
           </div>
 
           {/* Desktop CTA & Mobile Toggle */}

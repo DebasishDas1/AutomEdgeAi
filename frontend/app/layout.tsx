@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Outfit, Plus_Jakarta_Sans, DM_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 // Display — Outfit
@@ -83,9 +84,21 @@ export default function RootLayout({
       )}
       suppressHydrationWarning
     >
-      <head>
-        <script
+      <body
+        className={[
+          "font-sans",
+          "text-slate-900 dark:text-slate-100",
+          "antialiased",
+          "min-h-screen",
+          "text-base",
+          "leading-relaxed",
+          "[word-break:break-word]",
+        ].join(" ")}
+      >
+        <Script
+          id="json-ld"
           type="application/ld+json"
+          strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               "@context": "https://schema.org",
@@ -98,18 +111,6 @@ export default function RootLayout({
             }),
           }}
         />
-      </head>
-      <body
-        className={[
-          "font-sans",
-          "text-slate-900 dark:text-slate-100",
-          "antialiased",
-          "min-h-screen",
-          "text-base",
-          "leading-relaxed",
-          "[word-break:break-word]",
-        ].join(" ")}
-      >
         {children}
       </body>
     </html>

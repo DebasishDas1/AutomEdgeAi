@@ -49,14 +49,25 @@ export function SolutionSection() {
     <section id="solution" className="py-24 px-6 bg-muted/30 scroll-mt-24">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-20">
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="inline-flex items-center gap-2 px-6 py-2 rounded-full border border-primary/20 bg-primary/5 text-primary font-black text-xs uppercase tracking-[0.2em]"
+          >
+            The Solution
+          </motion.div>
+
           <motion.h2
             initial={{ opacity: 0, scale: 0.95 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
-            className="text-5xl md:text-7xl font-outfit font-extrabold leading-tight mb-6 tracking-tighter"
+            className="text-5xl md:text-7xl font-outfit font-extrabold leading-tight mb-6 tracking-tighter mt-6"
           >
-            Automedge AI: Your 24/7 <br className="hidden md:block" /> AI Sales
-            System
+            Automedge AI: Your 24/7 <br className="hidden md:block" />
+            <span className="text-accent underline decoration-accent/20 decoration-8 underline-offset-8">
+              AI Sales System
+            </span>
           </motion.h2>
           <motion.p
             initial={{ opacity: 0, y: 20 }}
@@ -82,17 +93,19 @@ export function SolutionSection() {
               viewport={{ once: true }}
               transition={{ delay: index * 0.1, duration: 0.6 }}
               whileHover={{ scale: 1.05, y: -5 }}
-              className="relative group p-10 rounded-[2.5rem] bg-background border-2 border-transparent hover:border-accent/40 transition-all duration-500 shadow-sm hover:shadow-2xl flex flex-col items-center text-center"
+              className="relative group p-10 rounded-[2.5rem] border-border/50 bg-card/40 backdrop-blur-xl hover:border-accent/40 transition-all duration-500 shadow-sm hover:shadow-2xl flex flex-col items-center text-center"
             >
-              <div className="mb-8 w-20 h-20 rounded-2xl bg-accent/10 flex items-center justify-center text-accent group-hover:bg-accent group-hover:text-accent-foreground transition-all duration-500 group-hover:rotate-12 shadow-inner [&_svg]:w-10 [&_svg]:h-10">
+              <div className="mb-8 w-20 h-20 rounded-2xl bg-accent/10 flex items-center justify-center text-accent group-hover:bg-accent group-hover:text-accent-foreground transition-all shadow-inner [&_svg]:w-10 [&_svg]:h-10">
                 {item.icon}
               </div>
-              <h3 className="text-3xl font-outfit font-extrabold mb-4 tracking-tight">
-                {item.title}
-              </h3>
-              <p className="text-muted-foreground leading-relaxed font-sans font-medium text-lg max-w-[280px]">
-                {item.description}
-              </p>
+              <div className="space-y-4">
+                <h3 className="text-3xl font-outfit font-black leading-tight tracking-tight">
+                  {item.title}
+                </h3>
+                <p className="text-muted-foreground leading-relaxed font-medium opacity-80 group-hover:opacity-100 transition-opacity">
+                  {item.description}
+                </p>
+              </div>
             </motion.div>
           ))}
         </div>

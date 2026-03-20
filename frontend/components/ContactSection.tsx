@@ -51,6 +51,7 @@ export function ContactSection() {
               <input
                 type="text"
                 placeholder="Name"
+                aria-label="Full Name"
                 className="w-full px-8 py-5 rounded-4xl bg-card border-2 border-border focus:border-accent outline-none transition-all font-sans font-semibold text-lg"
                 required
                 value={formData.name}
@@ -61,6 +62,7 @@ export function ContactSection() {
               <input
                 type="email"
                 placeholder="Email"
+                aria-label="Work Email"
                 className="w-full px-8 py-5 rounded-4xl bg-card border-2 border-border focus:border-accent outline-none transition-all font-sans font-semibold text-lg"
                 required
                 value={formData.email}
@@ -70,6 +72,7 @@ export function ContactSection() {
               />
             </div>
             <select
+              aria-label="Filter by Industry"
               className="w-full px-8 py-5 rounded-4xl bg-card border-2 border-border focus:border-accent outline-none transition-all font-sans font-semibold text-lg appearance-none cursor-pointer"
               required
               value={formData.industry}
@@ -87,6 +90,7 @@ export function ContactSection() {
             </select>
             <textarea
               placeholder="How can we help?"
+              aria-label="Your Message"
               rows={4}
               className="w-full px-8 py-5 rounded-4xl bg-card border-2 border-border focus:border-accent outline-none transition-all font-sans font-semibold text-lg resize-none"
               required

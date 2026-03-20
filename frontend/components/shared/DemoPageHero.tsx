@@ -62,7 +62,7 @@ export function DemoPageHero({
                   .getElementById("calendar")
                   ?.scrollIntoView({ behavior: "smooth" })
               }
-              className="w-full sm:w-auto px-10 py-5 bg-cta glow-cta text-foreground font-black rounded-2xl hover:-translate-y-1 transition-all active:scale-95 shadow-2xl text-lg"
+              className="w-full sm:w-auto px-10 py-5 bg-cta glow-cta text-black font-black rounded-2xl hover:-translate-y-1 transition-all active:scale-95 shadow-2xl text-lg"
             >
               Book My Demo
             </button>

@@ -20,7 +20,6 @@ const DEMOS = [
     title: "HVAC",
     description: "Book 30% more furnace repairs automatically.",
     icon: Wind,
-    color: "from-blue-500 to-cyan-400",
     href: "/demo-hvac",
   },
   {
@@ -28,7 +27,6 @@ const DEMOS = [
     title: "Plumbing",
     description: "Instant dispatching for emergency leaks.",
     icon: Droplet,
-    color: "from-cyan-500 to-sky-400",
     href: "/demo-plumbing",
   },
   {
@@ -36,7 +34,6 @@ const DEMOS = [
     title: "Pest Control",
     description: "Convert seasonal inquiries into bookings.",
     icon: Bug,
-    color: "from-emerald-500 to-green-400",
     href: "/demo-pest-control",
   },
   {
@@ -44,58 +41,53 @@ const DEMOS = [
     title: "Roofing",
     description: "Qualify storm damage leads instantly.",
     icon: Home,
-    color: "from-amber-500 to-orange-400",
     href: "/demo-roofing",
   },
 ];
 
 // ─── Premium Card ─────────────────────────
-const DemoCard = memo(({ demo }: any) => {
+const DemoCard = memo(({ index, demo }: any) => {
+  const { title, description, href } = demo;
   const Icon = demo.icon;
 
   return (
-    <Link href={demo.href} className="group block relative h-full">
+    <Link href={href} className="group block relative h-full">
       <motion.div
-        whileHover={{ y: -6, scale: 0.98 }}
-        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ delay: index * 0.1, duration: 0.6 }}
         className="relative h-full"
       >
-        {/* Neon Ambient Glow */}
-        <div
-          className={`absolute -inset-4 rounded-4xl bg-linear-to-br ${demo.color} opacity-0 group-hover:opacity-15 blur-3xl transition-opacity duration-500`}
-        />
+        {/* Ambient Golden Glow (Hover Only) */}
+        <div className="absolute -inset-2 bg-linear-to-br from-amber-500/20 to-yellow-500/10 rounded-[3rem] blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10" />
 
-        <div className="relative h-full rounded-4xl border-2 border-border/50 bg-card/40 backdrop-blur-2xl p-8 md:p-12 text-center flex flex-col items-center justify-center hover:border-accent/40 transition-colors shadow-sm group-hover:shadow-2xl overflow-hidden">
-          {/* Subtle Shimmer Background */}
-          <div className="absolute inset-0 bg-linear-to-br from-white/5 to-transparent pointer-events-none" />
+        <div className="relative h-full p-10 rounded-[2.5rem] border-2 border-border/50 bg-card/60 backdrop-blur-3xl hover:border-amber-500/40 transition-all duration-500 shadow-sm hover:shadow-2xl flex flex-col items-center text-center overflow-hidden">
+          {/* Internal Shimmer/Light Beam */}
+          <div className="absolute top-0 right-0 w-full h-full bg-linear-to-bl from-amber-500/5 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
-          {/* Icon container */}
-          <div className="relative mb-8">
-            <div
-              className={`w-20 h-20 rounded-2xl bg-linear-to-br ${demo.color} shadow-[0_10px_30px_-5px_var(--tw-shadow-color)] shadow-accent/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-500`}
-            >
-              <Icon className="w-10 h-10 text-white" />
+          {/* Icon Container with Golden Treatment */}
+          <div className="mb-10 relative">
+            <div className="w-24 h-24 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500 group-hover:bg-amber-500 group-hover:text-black transition-all duration-500 shadow-inner group-hover:shadow-[0_0_30px_rgba(245,158,11,0.4)]">
+              <Icon className="w-12 h-12" />
             </div>
-            {/* Pulsing ring around icon */}
-            <div
-              className={`absolute -inset-2 rounded-2xl border-2 border-accent/20 animate-ping [animation-duration:3s] opacity-0 group-hover:opacity-100 transition-opacity`}
-            />
+            {/* Subtle puls ring around icon */}
+            <div className="absolute -inset-2 rounded-2xl border border-amber-500/20 animate-ping [animation-duration:3s] opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
 
-          {/* Title */}
-          <h4 className="text-3xl md:text-4xl font-outfit font-black text-foreground mb-4 tracking-tighter leading-none">
-            {demo.title}
-          </h4>
+          <div className="space-y-4 relative z-10">
+            <h3 className="text-4xl font-outfit font-black leading-tight tracking-tighter text-amber-500 dark:text-amber-400">
+              {title}
+            </h3>
+            <p className="text-xl text-muted-foreground leading-relaxed font-semibold opacity-70 group-hover:opacity-100 transition-opacity max-w-[280px]">
+              {description}
+            </p>
+          </div>
 
-          {/* Description */}
-          <p className="text-lg text-muted-foreground leading-relaxed max-w-[400px] font-medium mb-8">
-            {demo.description}
-          </p>
-
-          {/* Bottom Action */}
-          <div className="mt-auto flex items-center gap-2 text-accent font-black uppercase tracking-[0.2em] text-[10px] sm:text-xs opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
-            See Live Demo
-            <ChevronDown className="w-4 h-4 -rotate-90" />
+          {/* Bottom Call to Action */}
+          <div className="mt-8 flex items-center gap-2 text-amber-600 dark:text-amber-500 font-black uppercase tracking-[0.2em] text-[10px] transform translate-y-2 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transition-all">
+            Open Workflow Demo
+            <Zap className="w-3 h-3 fill-current" />
           </div>
         </div>
       </motion.div>
@@ -120,7 +112,10 @@ const Node = memo(({ children, label, glow }: any) => (
 // ─── Main Section ─────────────────────────
 export function DemoWorkflowSection() {
   return (
-    <section className="py-32 px-6 max-w-7xl mx-auto overflow-hidden relative">
+    <section
+      id="the-engine"
+      className="py-32 px-6 max-w-7xl mx-auto overflow-hidden relative"
+    >
       {/* Background decoration */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-[radial-gradient(circle_at_center,var(--tw-gradient-stops))] from-accent/5 via-transparent to-transparent -z-10" />
 
@@ -175,8 +170,8 @@ export function DemoWorkflowSection() {
 
         {/* Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 w-full max-w-5xl">
-          {DEMOS.map((demo) => (
-            <DemoCard key={demo.id} demo={demo} />
+          {DEMOS.map((demo, index) => (
+            <DemoCard key={demo.id} demo={demo} index={index} />
           ))}
         </div>
       </div>

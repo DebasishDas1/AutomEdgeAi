@@ -4,46 +4,59 @@ import { GLSLHills } from "@/components/ui/glsl-hills";
 import { Zap, Check, Video } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useDomainNavigation } from "@/hook/useDomainNavigation";
+import Link from "next/link";
 
 const badges = ["14 day setup", "No long contracts", "Works with your CRM"];
 
 export const ModernHero = () => {
   const { goTo } = useDomainNavigation();
   return (
-    <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden ">
+    <div className="relative flex h-full min-h-[800px] w-full flex-col items-center justify-center overflow-hidden">
       <GLSLHills />
-      <div className="space-y-6 pointer-events-none z-10 text-center absolute">
-        <h1 className="font-semibold text-7xl whitespace-pre-wrap">
-          <span className="italic text-6xl font-thin">
-            Stop Losing Jobs <br />
+      <div className="space-y-8 z-10 text-center absolute px-6">
+        <h1 className="font-semibold text-5xl md:text-7xl whitespace-pre-wrap leading-tight tracking-tighter">
+          <span className="italic text-4xl md:text-6xl font-thin block mb-2 opacity-80">
+            Stop Losing Jobs
           </span>
           to Slow Follow-Up
         </h1>
-        <p className="text-sm text-primary/60">
+        <p className="text-lg md:text-xl text-primary/60 max-w-2xl mx-auto leading-relaxed font-medium">
           AutomEdge responds to every HVAC lead in under 60 seconds — qualifies,
-          <br />
           books, and follows up automatically. No extra staff.
         </p>
-        <div className="flex gap-4 flex-wrap items-center justify-center">
-          <a onClick={() => goTo("demo-hvac")} href="/hvac">
-            <button className="flex items-center gap-2 bg-accent text-primary px-7 py-4 rounded-xl font-bold hover:scale-[1.03] transition">
-              <Zap className="w-4 h-4" />
-              See it Live - Free Demo
-            </button>
-          </a>
 
-          <a onClick={() => goTo("contact")}>
-            <button className="flex items-center gap-2 px-7 py-4 rounded-xl border border-accent">
-              <Video className="w-4 h-4 text-accent" />
-              Watch 3-minute Video
-            </button>
-          </a>
+        <div className="flex flex-col sm:flex-row gap-5 items-center justify-center">
+          <Link
+            href="/demo-hvac"
+            onClick={(e) => {
+              e.preventDefault();
+              goTo("demo-hvac");
+            }}
+            aria-label="See HVAC Demo Live"
+            className="w-full sm:w-auto flex items-center justify-center gap-3 bg-accent text-primary px-10 py-5 rounded-2xl font-black hover:scale-[1.05] active:scale-95 transition-all shadow-[0_20px_50px_rgba(0,194,168,0.3)] group"
+          >
+            <Zap className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+            See it Live - Free Demo
+          </Link>
+
+          <button
+            onClick={() => goTo("contact")}
+            aria-label="Watch Introduction Video"
+            className="w-full sm:w-auto flex items-center justify-center gap-3 px-10 py-5 rounded-2xl border-2 border-accent/30 bg-background/50 backdrop-blur-sm hover:border-accent hover:bg-accent/5 transition-all font-bold text-lg"
+          >
+            <Video className="w-5 h-5 text-accent" />
+            Watch 3-minute Video
+          </button>
         </div>
 
-        <div className="flex gap-6 flex-wrap items-center justify-center">
+        <div className="flex gap-4 md:gap-8 flex-wrap items-center justify-center mt-4">
           {badges.map((badge) => (
-            <Badge variant="outline" key={badge} className="flax gap-2">
-              <Check data-icon="inline-start" className="text-accent" />
+            <Badge
+              variant="outline"
+              key={badge}
+              className="flex gap-2 py-2 px-4 border-accent/20 bg-accent/5 rounded-full text-sm font-bold"
+            >
+              <Check className="w-4 h-4 text-accent stroke-[3px]" />
               {badge}
             </Badge>
           ))}

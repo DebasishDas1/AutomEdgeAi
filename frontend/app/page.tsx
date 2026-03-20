@@ -1,14 +1,31 @@
+import dynamic from "next/dynamic";
 import { Navbar } from "@/components/Navbar";
 import { ModernHero } from "@/components/ModernHero";
-import { ProblemSection } from "@/components/ProblemSection";
-import { SolutionSection } from "@/components/SolutionSection";
-import { ImpactSection } from "@/components/ImpactSection";
-import { LogoCloud } from "@/components/LogoCloud";
-import { FAQSection } from "@/components/FAQSection";
-import { ContactSection } from "@/components/ContactSection";
-import { HowItWorks } from "@/components/HowItWorks";
-import { DemoWorkflowSection } from "@/components/DemoWorkflowSection";
-import { Footer } from "@/components/ui/large-name-footer";
+import type { Metadata } from "next";
+
+// Above the fold - Static
+// Navbar and ModernHero remain static for immediate LCP
+
+// Below the fold - Dynamic
+const ProblemSection = dynamic(() => import("@/components/ProblemSection").then(mod => mod.ProblemSection));
+const HowItWorks = dynamic(() => import("@/components/HowItWorks").then(mod => mod.HowItWorks));
+const SolutionSection = dynamic(() => import("@/components/SolutionSection").then(mod => mod.SolutionSection));
+const DemoWorkflowSection = dynamic(() => import("@/components/DemoWorkflowSection").then(mod => mod.DemoWorkflowSection));
+const ImpactSection = dynamic(() => import("@/components/ImpactSection").then(mod => mod.ImpactSection));
+const LogoCloud = dynamic(() => import("@/components/LogoCloud").then(mod => mod.LogoCloud));
+const FAQSection = dynamic(() => import("@/components/FAQSection").then(mod => mod.FAQSection));
+const ContactSection = dynamic(() => import("@/components/ContactSection").then(mod => mod.ContactSection));
+const Footer = dynamic(() => import("@/components/ui/large-name-footer").then(mod => mod.Footer));
+
+export const metadata: Metadata = {
+  title: "Stop Losing Jobs to Slow Follow-Up | AutomEdge AI",
+  description: "AutomEdge responds to every HVAC, Roofing, and Plumbing lead in <60 seconds. Our AI qualifies, books, and follows up automatically so you can focus on the job.",
+  openGraph: {
+    title: "Stop Losing Jobs to Slow Follow-Up | AutomEdge AI",
+    description: "Respond to every lead in <60 seconds. Our AI qualifies, books, and follows up automatically.",
+    images: [{ url: "/hvac.png" }], // Using an existing image as og-image
+  }
+};
 
 const FAQS = [
   {
