@@ -13,7 +13,7 @@ from api.v1.chat.base import (
     handle_start,
 )
 
-router = APIRouter(prefix="/plumbing")
+router = APIRouter()
 
 _VERTICAL = "plumbing"
 

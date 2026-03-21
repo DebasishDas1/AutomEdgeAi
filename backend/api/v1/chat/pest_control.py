@@ -13,7 +13,7 @@ from api.v1.chat.base import (
     handle_start,
 )
 
-router = APIRouter(prefix="/pest_control")
+router = APIRouter()
 
 _VERTICAL = "pest_control"
 

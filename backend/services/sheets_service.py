@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-import base64
-import os
 import structlog
 from typing import Any
+from core.config import settings
 
 logger = structlog.get_logger(__name__)
 
@@ -15,18 +14,22 @@ _SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 
 def _get_service():
-    """Build Sheets API client from base64-encoded env var."""
+    """Build Sheets API client from JSON env var."""
     try:
         from google.oauth2.service_account import Credentials
         from googleapiclient.discovery import build
     except ImportError:
         raise RuntimeError("Run: uv add google-api-python-client google-auth")
 
-    raw = os.environ.get("SHEETS_CREDENTIALS_JSON")
+    raw = settings.SHEETS_CREDENTIALS_JSON
     if not raw:
         raise RuntimeError("SHEETS_CREDENTIALS_JSON env var not set")
 
-    info = json.loads(base64.b64decode(raw))
+    try:
+        info = json.loads(raw)
+    except Exception as e:
+        raise RuntimeError(f"Invalid JSON in SHEETS_CREDENTIALS_JSON: {e}")
+
     creds = Credentials.from_service_account_info(info, scopes=_SCOPES)
     return build("sheets", "v4", credentials=creds)
 

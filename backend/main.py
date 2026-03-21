@@ -75,7 +75,7 @@ app = FastAPI(
     title="Automedge AI Backend",
     version="1.0.0",
     lifespan=lifespan,
-    default_response_class=ORJSONResponse,
+    # default_response_class=ORJSONResponse,
     # FIX: disable /docs and /redoc in production — they leak your full API schema.
     # docs_url="/docs" if settings.ENVIRONMENT == "dev" else None,
     # redoc_url="/redoc" if settings.ENVIRONMENT == "dev" else None,
