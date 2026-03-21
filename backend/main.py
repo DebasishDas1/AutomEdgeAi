@@ -9,6 +9,8 @@ from core.config import settings
 from core.database import init_db, engine
 from api.router import router
 from workflows.registry import registry
+from fastapi.middleware.gzip import GZipMiddleware
+
 
 # ── Logging config ────────────────────────────────────────────────────────────
 # FIX: structlog.configure() is called at module import time — fine.
@@ -95,6 +97,11 @@ app.add_middleware(
     allow_credentials=not settings.is_dev,   # False in dev (wildcard), True in prod
     allow_methods=["GET", "POST", "OPTIONS"],  # be explicit — ["*"] allows DELETE/PUT
     allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
+)
+
+app.add_middleware(
+    GZipMiddleware,
+    minimum_size=1000,  # only compress responses > 1KB
 )
 
 

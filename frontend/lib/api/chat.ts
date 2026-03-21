@@ -98,3 +98,70 @@ export const sendChatMessage = (
     `/api/v1/chat/${toApiVertical(vertical)}/message`,
     { session_id, message },
   );
+
+export interface MessageMetadata {
+  is_complete:      boolean;
+  turn:             number;
+  appt_booked:      boolean;
+  fields_collected: Record<string, unknown>;
+}
+
+/**
+ * SSE streaming wrapper for chat messages.
+ */
+export async function streamChatMessage(
+  vertical:   string,
+  session_id: string,
+  message:    string,
+  onChunk:    (chunk: string) => void,
+  onMetadata: (meta: MessageMetadata) => void,
+) {
+  const res = await fetch(`${baseUrl()}/api/v1/chat/${toApiVertical(vertical)}/message/stream`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({ session_id, message }),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => res.statusText);
+    throw new ApiError(res.status, detail);
+  }
+
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error("Stream reader not available");
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    
+    // SSE emits chunks separated by double newline
+    const chunks = buffer.split("\n\n");
+    buffer = chunks.pop() || ""; // last piece might be partial
+
+    for (const chunk of chunks) {
+      const line = chunk.trim();
+      if (!line.startsWith("data: ")) continue;
+      
+      const raw = line.slice(6).trim();
+      if (raw === "[DONE]") return;
+
+      try {
+        const payload = JSON.parse(raw);
+        if (payload.chunk) {
+          onChunk(payload.chunk);
+        } else if (payload.metadata) {
+          onMetadata(payload.metadata);
+        } else if (payload.error) {
+          throw new Error(payload.error);
+        }
+      } catch (e) {
+        console.warn("Failed to parse SSE payload", e);
+      }
+    }
+  }
+}

@@ -115,7 +115,7 @@ export const DemoPageCalendar = ({
   return (
     <section
       id="calendar"
-      className="relative py-28 px-6 max-w-6xl mx-auto scroll-mt-24 w-full flex flex-col items-center"
+      className="relative py-28 px-6 max-w-6xl mx-auto scroll-mt-24 w-full flex flex-col items-center overflow-hidden"
     >
       {/* Background Blobs */}
       <div className="absolute top-1/2 left-0 w-[600px] h-[600px] bg-accent/10 rounded-full blur-[140px] -translate-y-1/2 -z-10 pointer-events-none animate-pulse" />

@@ -126,3 +126,18 @@ async def run_post_chat(state: dict, vertical: str) -> None:
                 logger.info("post_chat_complete", session_id=state.get("session_id"))
     except Exception as exc:
         logger.error("post_chat_failed", session_id=state.get("session_id"), error=str(exc))
+
+
+async def save_session_by_id(db: AsyncSession, session_id: str, state: dict) -> None:
+    """Save session state by session_id."""
+    from core.database import ChatSession, select
+    
+    res = await db.execute(
+        select(ChatSession).where(ChatSession.session_id == session_id)
+    )
+    row = res.scalar_one_or_none()
+    
+    if not row:
+        raise ValueError(f"session_not_found: {session_id}")
+    
+    await _save_session(db, row, state)
