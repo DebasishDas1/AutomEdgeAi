@@ -33,4 +33,5 @@ dependencies = [
     "uvicorn[standard]>=0.30.0",
     "google-api-python-client>=2.193.0",
     "google-auth>=2.49.0",
+    "hubspot-api-client>=12.0.0",
 ]

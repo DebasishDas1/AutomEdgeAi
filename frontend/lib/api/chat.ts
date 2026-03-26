@@ -89,15 +89,7 @@ export const startChatSession = (
     20_000, // longer timeout for session start (cold start on Render)
   );
 
-export const sendChatMessage = (
-  vertical:   string,
-  session_id: string,
-  message:    string,
-) =>
-  post<SendMessageResponse>(
-    `/api/v1/chat/${toApiVertical(vertical)}/message`,
-    { session_id, message },
-  );
+export const sendChatMessage = undefined; // Deleted blocking sendChatMessage
 
 export interface MessageMetadata {
   is_complete:      boolean;

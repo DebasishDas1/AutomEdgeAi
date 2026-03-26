@@ -60,6 +60,11 @@ class Settings(BaseSettings):
     MAX_TOKEN: int = 1024
 
     # -------------------------
+    # HubSpot
+    # -------------------------
+    HUBSPOT_ACCESS_TOKEN: Optional[str] = None
+
+    # -------------------------
     # CORS
     # -------------------------
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000"]

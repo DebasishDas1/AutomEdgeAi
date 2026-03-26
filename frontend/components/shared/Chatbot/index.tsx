@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { m as motion, AnimatePresence } from "framer-motion";
-import { startChatSession, sendChatMessage } from "@/lib/api/chat";
+import { startChatSession, streamChatMessage } from "@/lib/api/chat";
 import { toast } from "sonner";
 
 import { Message, ChatbotProps, UserInfo } from "./types";
@@ -145,9 +145,36 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
           return;
         }
 
-        const data = await sendChatMessage(apiVertical, currentSessionId, msg);
+        setIsTyping(false); // remove initial typing dots to start streamed text
+        const botMsgId = uid();
+        setMessages((prev) => [
+          ...prev,
+          { id: botMsgId, text: "", sender: "bot" }
+        ]);
 
-        if (data?.is_complete) {
+        let isDone = false;
+        let errorMessage = "Something slipped through the wires. Try again?";
+
+        await streamChatMessage(
+          apiVertical,
+          currentSessionId,
+          msg,
+          (chunk) => {
+            setMessages((prev) => 
+              prev.map(m => m.id === botMsgId ? { ...m, text: m.text + chunk } : m)
+            );
+          },
+          (meta) => {
+            if (meta.is_complete) {
+              isDone = true;
+            }
+          }
+        ).catch((err) => {
+          errorMessage = err instanceof Error ? err.message : errorMessage;
+          throw err; // rethrow for catch block
+        });
+
+        if (isDone) {
           setIsComplete(true);
           isCompleteRef.current = true;
 
@@ -164,10 +191,6 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
           resetChat();
           return;
         }
-
-        addBotMsg(
-          data?.message || "Something slipped through the wires. Try again?",
-        );
       } catch (err: any) {
         // 🌐 smarter error UX
         if (err?.status === 408) {
