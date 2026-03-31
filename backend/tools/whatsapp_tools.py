@@ -1,142 +1,199 @@
-# tools/whatsapp_tools.py
-# Twilio WhatsApp — user confirmation + team alert.
+# tools/workflow_tools.py
 from __future__ import annotations
 
 import asyncio
+import uuid
 import structlog
-from core.config import settings
+from datetime import datetime, timezone
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
+
+from core.database import ChatSession, get_db_context
+from workflows.registry import registry
 
 logger = structlog.get_logger(__name__)
 
-# Override in .env as TWILIO_WA_FROM for production numbers.
-# Default is Twilio sandbox — must be approved for your account.
-_TWILIO_WA_FROM = getattr(settings, "TWILIO_WA_FROM", "whatsapp:+14155238886")
+
+async def _save_session(db: AsyncSession, row: ChatSession, state) -> None:
+    """Normalize and persist LangGraph state. Caller must commit."""
+    if isinstance(state, str):
+        state = {"messages": [{"role": "assistant", "content": state}], "is_complete": False}
+    elif hasattr(state, "state"):
+        state = dict(state.state)
+    elif not isinstance(state, dict):
+        state = {"messages": [{"role": "assistant", "content": str(state)}], "is_complete": False}
+
+    msgs = state.get("messages", [])
+    if not isinstance(msgs, list):
+        msgs = [msgs]
+    state["messages"] = msgs[-20:]
+
+    row.state = {k: v for k, v in state.items() if not k.startswith("_")}
+    flag_modified(row, "state")
+    row.is_complete = bool(state.get("is_complete"))
+    row.updated_at = datetime.now(timezone.utc)
 
 
-class WhatsAppTools:
+async def start_session(
+    db: AsyncSession,
+    vertical: str,
+    name: str | None = None,
+    email: str | None = None,
+    phone: str | None = None,
+    source: str | None = None,
+) -> dict:
+    _SUPPORTED = {"hvac", "plumbing", "roofing", "pest_control"}
+    if vertical not in _SUPPORTED:
+        raise ValueError(f"Unknown vertical '{vertical}'. Supported: {sorted(_SUPPORTED)}")
 
-    def _client(self):
+    session_id = str(uuid.uuid4())
+    initial_state = {
+        "session_id":   session_id,
+        "vertical":     vertical,
+        "messages":     [],
+        "turn_count":   0,
+        "is_complete":  False,
+        "is_spam":      False,
+        "intent":       "service_request",
+        "name":         name  or None,
+        "email":        email or None,
+        "phone":        phone or None,
+        "issue":        None,
+        "description":  None,
+        "urgency":      None,
+        "address":      None,
+        "is_homeowner": None,
+        "ai_urgency":   None,
+    }
+
+    row = ChatSession(
+        session_id=session_id,
+        vertical=vertical,
+        state=initial_state,
+        form_data={"name": name, "email": email, "phone": phone, "source": source},
+    )
+    db.add(row)
+    await db.commit()
+    logger.info("session_started", session_id=session_id, vertical=vertical,
+                has_name=bool(name), has_email=bool(email), has_phone=bool(phone))
+    return {"session_id": session_id, "vertical": vertical, "turn": 0}
+
+
+async def send_message(db: AsyncSession, session_id: str, user_msg: str) -> dict:
+    """
+    Append user message, invoke chat graph, persist result.
+
+    FIX: build graph_input as a clean local copy before ainvoke. If ainvoke
+    raises, row.state is never touched — session stays consistent.
+
+    FIX: post-chat task uses loop.create_task with a name for debuggability.
+    Previously asyncio.create_task was called outside a running-loop guard,
+    which silently dropped the task on some FastAPI configurations.
+    """
+    stmt = select(ChatSession).where(
+        ChatSession.session_id == session_id
+    ).with_for_update()
+    res = await db.execute(stmt)
+    row = res.scalar_one_or_none()
+
+    if row is None:
+        raise ValueError("session_not_found")
+    if row.is_complete:
+        raise ValueError("session_already_complete")
+
+    state = dict(row.state)
+    graph_input = {
+        **state,
+        "messages": list(state.get("messages", [])) + [{
+            "role": "user",
+            "content": user_msg,
+            "ts": datetime.now(timezone.utc).isoformat(),
+        }],
+    }
+
+    graph = registry.get_chat_graph(row.vertical)
+    result = await graph.ainvoke(graph_input)
+
+    was_complete = bool(state.get("is_complete"))
+    await _save_session(db, row, result)
+    await db.commit()
+
+    # Fire post-chat pipeline when session first completes
+    if result.get("is_complete") and not was_complete:
+        post_state = dict(result)
+        vertical = row.vertical
         try:
-            from twilio.rest import Client
-        except ImportError:
-            raise RuntimeError("Run: uv add twilio")
-        return Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
-
-    def _ready(self) -> bool:
-        if not settings.TWILIO_ACCOUNT_SID or not settings.TWILIO_AUTH_TOKEN:
-            logger.warning("whatsapp_skip_no_credentials")
-            return False
-        return True
-
-    @staticmethod
-    def _normalize(phone: str) -> str:
-        return phone if phone.startswith("+") else f"+{phone}"
-
-    async def notify_user(self, state: dict) -> None:
-        """Send confirmation WhatsApp to the lead after session completes."""
-        if not self._ready():
-            return
-        phone = state.get("phone")
-        if not phone:
-            logger.warning("whatsapp_skip_no_user_phone")
-            return
-
-        name    = state.get("name") or "there"
-        issue   = (state.get("issue") or state.get("pest_type") or "your request")
-        address = state.get("address") or "your location"
-        score   = (state.get("score") or "warm").upper()
-
-        # Include appointment confirmation if booked
-        appt_line = ""
-        if state.get("appt_confirmed"):
-            appt_line = f"\nAppointment: {state['appt_confirmed']}"
-        elif state.get("appt_booked"):
-            appt_line = "\nAppointment: confirmed — we'll call to confirm the time."
-
-        msg = (
-            f"Hi {name}! \u2705 Your request has been received.\n\n"
-            f"Issue: {issue}\n"
-            f"Location: {address}\n"
-            f"Priority: {score}"
-            f"{appt_line}\n\n"
-            f"A technician will call you within 15 minutes. "
-            f"Questions? Reply to this message."
-        )
-
-        try:
-            client = self._client()
-            await asyncio.to_thread(
-                client.messages.create,
-                from_=_TWILIO_WA_FROM,
-                to=f"whatsapp:{self._normalize(phone)}",
-                body=msg,
+            loop = asyncio.get_running_loop()
+            loop.create_task(
+                run_post_chat(post_state, vertical),
+                name=f"post_chat_{session_id[:8]}",
             )
-            logger.info("whatsapp_user_sent", phone=phone)
-        except Exception as exc:
-            logger.error("whatsapp_user_failed", error=str(exc))
+            logger.info("post_chat_scheduled", session_id=session_id, vertical=vertical)
+        except RuntimeError as exc:
+            logger.error("post_chat_schedule_failed", session_id=session_id, error=str(exc))
 
-    async def notify_team(self, state: dict) -> None:
-        """
-        Send lead alert WhatsApp to the business owner.
-
-        BUG FIX: was using TWILIO_FROM_NUMBER (the SMS sender) as the team
-        receive number. These are different — TWILIO_FROM_NUMBER is the `from_`
-        address for outbound SMS, not the number that receives the alert.
-        Now uses TEAM_WHATSAPP_NUMBER with fallback to TEAM_PHONE.
-        Add TEAM_WHATSAPP_NUMBER=+1... to your .env.
-        """
-        if not self._ready():
-            return
-        if state.get("score") not in ("hot", "warm"):
-            return
-
-        # TEAM_WHATSAPP_NUMBER = the number that RECEIVES team alerts
-        team_phone = (
-            getattr(settings, "TEAM_WHATSAPP_NUMBER", None)
-            or getattr(settings, "TEAM_PHONE", None)
-        )
-        if not team_phone:
-            logger.warning("whatsapp_team_skip_no_team_phone",
-                           hint="Set TEAM_WHATSAPP_NUMBER in .env")
-            return
-
-        score   = (state.get("score") or "warm").upper()
-        name    = state.get("name") or "Unknown"
-        phone   = state.get("phone") or "—"
-        issue   = state.get("issue") or state.get("pest_type") or "—"
-        address = state.get("address") or "—"
-        summary = state.get("ai_summary") or "—"
-        appt    = state.get("appt_confirmed") or ("booked" if state.get("appt_booked") else "none")
-
-        msg = (
-            f"\U0001f525 *{score} LEAD*\n\n"
-            f"*Name:* {name}\n"
-            f"*Phone:* {phone}\n"
-            f"*Issue:* {issue}\n"
-            f"*Location:* {address}\n"
-            f"*Appointment:* {appt}\n"
-            f"*Summary:* {summary}"
-        )
-
-        try:
-            client = self._client()
-            await asyncio.to_thread(
-                client.messages.create,
-                from_=_TWILIO_WA_FROM,
-                to=f"whatsapp:{self._normalize(team_phone)}",
-                body=msg,
-            )
-            logger.info("whatsapp_team_sent", score=score)
-        except Exception as exc:
-            logger.error("whatsapp_team_failed", error=str(exc))
-
-    async def send_lead_notification(self, state: dict) -> None:
-        """Convenience: fire both user + team in parallel."""
-        await asyncio.gather(
-            self.notify_user(state),
-            self.notify_team(state),
-            return_exceptions=True,
-        )
+    last_ai = next(
+        (m["content"] for m in reversed(result.get("messages", []))
+         if m.get("role") == "assistant"),
+        "",
+    )
+    return {
+        "session_id":       session_id,
+        "message":          last_ai,
+        "turn":             result.get("turn_count", 0),
+        "is_complete":      bool(result.get("is_complete")),
+        "appt_booked":      bool(result.get("appt_booked")),
+        "fields_collected": {
+            k: result.get(k)
+            for k in ("name", "email", "phone", "issue",
+                      "description", "urgency", "address")
+            if result.get(k) is not None
+        },
+    }
 
 
-whatsapp_tools = WhatsAppTools()
+async def run_post_chat(state: dict, vertical: str) -> None:
+    """
+    Run score + deliver post-chat graph in a fresh DB context.
+    All errors are caught — must never propagate to the event loop.
+
+    FIX: previously `if not graph: return` silently swallowed a None graph
+    without logging. Now logs a warning with the vertical name.
+    """
+    session_id = state.get("session_id")
+    logger.info("post_chat_started", session_id=session_id, vertical=vertical)
+
+    graph = registry.get_post_graph(vertical)
+    if graph is None:
+        logger.warning("post_chat_no_graph", vertical=vertical, session_id=session_id)
+        return
+
+    try:
+        async with get_db_context() as db:
+            stmt = select(ChatSession).where(
+                ChatSession.session_id == session_id
+            ).with_for_update()
+            res = await db.execute(stmt)
+            row = res.scalar_one_or_none()
+            if row is None:
+                logger.warning("post_chat_session_not_found", session_id=session_id)
+                return
+            result = await graph.ainvoke(state)
+            await _save_session(db, row, result)
+            await db.commit()
+            logger.info("post_chat_complete", session_id=session_id, vertical=vertical)
+    except Exception as exc:
+        logger.error("post_chat_failed", session_id=session_id,
+                     vertical=vertical, error=str(exc))
+
+
+async def save_session_by_id(db: AsyncSession, session_id: str, state: dict) -> None:
+    res = await db.execute(
+        select(ChatSession).where(ChatSession.session_id == session_id)
+    )
+    row = res.scalar_one_or_none()
+    if row is None:
+        raise ValueError(f"session_not_found: {session_id}")
+    await _save_session(db, row, state)

@@ -134,6 +134,10 @@ async def handle_message_stream(body: MessageRequest, db) -> StreamingResponse:
     from core.database import ChatSession, get_db_context, select  # local to avoid circular
 
     # ── Eager session validation (before we start streaming) ─────────────────
+    # NOTE: This uses the outer `db` session from the FastAPI Depends(get_db).
+    # This is safe ONLY because this fetch happens BEFORE `return StreamingResponse`.
+    # Once the StreamingResponse is returned, the outer `db` session is closed by FastAPI.
+    # Any DB access within the `stream()` generator itself must use a fresh context (get_db_context()).
     res = await db.execute(
         select(ChatSession).where(ChatSession.session_id == body.session_id)
     )

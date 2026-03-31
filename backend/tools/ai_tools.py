@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import structlog
+import asyncio
 from typing import Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -189,7 +190,5 @@ class AITools:
             log.error("enrich_model_failed", error=str(exc))
             return None
 
-
-import asyncio  # noqa: E402 — needed for enrich_lead gather
 
 ai_tools = AITools()

@@ -33,7 +33,7 @@ class WorkflowRegistry:
 
     _instance: Optional["WorkflowRegistry"] = None
     _class_lock = threading.Lock()
-    _init_lock = threading.Lock()
+    _init_lock = asyncio.Lock()
 
     def __new__(cls) -> "WorkflowRegistry":
         with cls._class_lock:
@@ -43,12 +43,12 @@ class WorkflowRegistry:
                 cls._instance = instance
         return cls._instance
 
-    def initialize(self) -> None:
+    async def initialize(self) -> None:
         """
         Call once at app startup (e.g., FastAPI lifespan).
         Thread-safe: subsequent calls are no-ops.
         """
-        with self._init_lock:
+        async with self._init_lock:
             if self._initialized:
                 return
             self._build_graphs()

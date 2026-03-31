@@ -39,9 +39,19 @@ def _client():
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _phone_clean(phone: str | None) -> str | None:
-    """Normalize phone to E.164 digits only."""
+    """Normalize phone to E.164 digits only using phonenumbers library."""
     if not phone:
         return None
+    try:
+        import phonenumbers
+        # Try US as default, then fallback to current E.164 if already formatted
+        parsed = phonenumbers.parse(phone, "US")
+        if phonenumbers.is_valid_number(parsed):
+            return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+    except Exception:
+        pass
+        
+    # Fallback to digits only if phonenumbers fails
     digits = "".join(c for c in phone if c.isdigit())
     return f"+{digits}" if digits else None
 

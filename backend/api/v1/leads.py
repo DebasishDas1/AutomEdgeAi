@@ -32,7 +32,8 @@ async def list_leads(
     db: AsyncSession     = Depends(get_db),
 ):
     try:
-        return await lead_tools.get_leads(db, vertical, score, stage, limit, offset)
+        leads, total = await lead_tools.get_leads(db, vertical, score, stage, limit, offset)
+        return LeadListResponse(leads=leads, total=total)
     except Exception as e:
         logger.error(f"list_leads: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch leads.")

@@ -21,6 +21,7 @@ class PlumbingState(TypedDict, total=False):
 
     # ── Plumbing-specific fields ──────────────────────────────────────────────
     issue:             Optional[str]   # "burst pipe", "slow drain", etc.
+    description:       Optional[str]   # detailed symptom description
     issue_type:        Optional[str]   # "emergency" | "routine"
     problem_area:      Optional[str]   # kitchen | bathroom | basement | whole_house | outside
     has_water_damage:  Optional[bool]

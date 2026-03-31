@@ -9,33 +9,29 @@ dependencies = [
     # Core framework
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
-
     # Database & async
     "sqlalchemy[asyncio]>=2.0.48",
     "asyncpg>=0.31.0",
-
     # Configuration & validation
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
-
     # Performance JSON
     "orjson>=3.10.0",
-
     # Network client
     "httpx>=0.28.1",
-
     # Logging & retries
     "structlog>=24.4.0",
     "tenacity>=9.0.0",
-
     # LLM + workflow
     "groq>=0.9.0",
     "langchain-groq>=1.1.2",
     "langchain-ollama>=1.0.1",
     "langgraph>=1.0.10",
-
     # Light external integrations
     "resend>=2.23.0",           # Email
-    "twilio>=9.10.2",           # SMS / WhatsApp
-    "hubspot-api-client>=12.0.0"  # CRM
+    "twilio>=9.10.2",           # SMS / WhatsApp  # CRM
+    "hubspot-api-client>=12.0.0",
+    "phonenumbers>=9.0.26",
+    "pydantic-extra-types>=2.11.1",
+    "email-validator>=2.3.0",
 ]

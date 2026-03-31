@@ -56,9 +56,9 @@ class LLMManager:
             last_user=(other_msgs[-1].content[:60] if other_msgs else ""),
         )
 
-        key = str([(type(m).__name__, m.content) for m in trimmed])
+        key = [(type(m).__name__, m.content) for m in trimmed]
         if settings.ENVIRONMENT != "dev":
-            cached = cache.get("llm", key)
+            cached = await cache.get("llm", key)
             if cached:
                 return cached
 
@@ -67,7 +67,7 @@ class LLMManager:
             try:
                 resp = await self._call(target, trimmed, **kwargs)
                 if settings.ENVIRONMENT != "dev":
-                    cache.set("llm", key, resp, ttl=1800)
+                    await cache.set("llm", key, resp, ttl=1800)
                 return resp
             except Exception as exc:
                 logger.error("llm_primary_failed", error=str(exc))

@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import time
-from datetime import datetime, timezone
 
 import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -12,7 +11,7 @@ from core.database import Lead, get_db_context
 from llm import llm
 from tools.ai_tools import ai_tools
 from workflows.shared import build_check_completion_node, build_chat_reply_node
-from workflows.base import field_missing, get_appt_slots
+from workflows.base import field_missing, get_appt_slots, full_transcript
 from workflows.hvac.schema import LeadEnrichment, LeadScore
 from workflows.plumbing.prompts import PLUMBING_EXPERT_SYSTEM
 from workflows.plumbing.state import PlumbingState
@@ -25,11 +24,9 @@ _COLLECTED_FIELDS = (
     "issue", "issue_type", "problem_area", "has_water_damage",
     "is_getting_worse", "main_shutoff_off", "is_homeowner",
     "property_type", "address", "urgency", "name", "phone", "email",
-    "wants_appointment", "appt_confirmed",
+    "wants_appointment", "appt_confirmed", "description",
 )
 
-# issue + address covers both emergency dispatch and routine scheduling.
-# name/phone/email pre-seeded from lead form.
 _REQUIRED_FIELDS = ("issue", "address")
 
 _EMERGENCY_KEYWORDS = {
@@ -37,14 +34,18 @@ _EMERGENCY_KEYWORDS = {
     "overflow", "no water", "water everywhere", "water damage",
 }
 
+# Map service-intent phrases to a clean issue label when extraction returns null.
+_SERVICE_INTENT_PHRASES = (
+    "priority service", "urgent service", "plumbing help", "need a plumber",
+    "emergency plumbing", "plumber", "plumbing", "pipe", "drain", "leak",
+    "water", "toilet", "faucet", "sink", "shower", "boiler", "service",
+)
+
 
 def _elapsed(start: float) -> int:
     return int((time.perf_counter() - start) * 1000)
 
 
-def _safe_merge(state: PlumbingState, field: str, new_val) -> None:
-    if new_val is not None and field_missing(state, field):
-        state[field] = new_val
 
 
 def _is_emergency(state: PlumbingState) -> bool:
@@ -61,6 +62,18 @@ def _is_emergency(state: PlumbingState) -> bool:
 
 def _normalize_phone(phone: str) -> str:
     return phone if phone.startswith("+") else f"+{phone}"
+
+
+def _issue_fallback(msg: str) -> str | None:
+    """
+    Return the raw message as the issue label if it looks like a service request.
+    Prevents session stall when LLM extraction returns issue=null for phrases
+    like "Priority Service" or "Need a plumber".
+    """
+    msg_lower = msg.strip().lower()
+    if any(phrase in msg_lower for phrase in _SERVICE_INTENT_PHRASES):
+        return msg.strip()[:80]
+    return None
 
 
 # ── 1. Validate ───────────────────────────────────────────────────────────────
@@ -94,8 +107,10 @@ async def node_validate_input(state: PlumbingState) -> PlumbingState:
 
 async def node_enrich_lead(state: PlumbingState) -> PlumbingState:
     """
-    Extract fields from last message + classify full history in parallel.
-    Also detects appointment intent from last user message.
+    Extract fields + classify full history in parallel.
+    Falls back to raw message as issue if extraction returns null for a
+    clear service-intent phrase — prevents session stall on _REQUIRED_FIELDS.
+    Appointment intent is detected every turn (not just post-completion).
     """
     start = time.perf_counter()
     state["last_node"] = "enrich_lead"
@@ -105,42 +120,47 @@ async def node_enrich_lead(state: PlumbingState) -> PlumbingState:
         (m["content"] for m in reversed(messages) if m.get("role") == "user"), None
     )
 
-    # Run extraction and classification concurrently — no data dependency between them
-    extraction_task = (
-        ai_tools.extract_plumbing_fields(last_user)
-        if last_user else asyncio.coroutine(lambda: None)()
-    )
+    async def _noop():
+        return None
+
     extraction, classification = await asyncio.gather(
-        extraction_task,
+        ai_tools.extract_plumbing_fields(full_transcript(state)),
         ai_tools.classify_conversation(messages),
         return_exceptions=True,
     )
 
-    # A. Merge extracted fields
+    # A. Merge extraction: Overwrite old fields if they contain new non-null values.
+    # This prevents session stall and ensures corrections update the state.
     if isinstance(extraction, Exception):
         logger.warning("plumbing_extraction_failed", error=str(extraction),
                        session_id=state.get("session_id"))
         extraction = None
 
     if extraction:
-        _safe_merge(state, "name",             extraction.get("name"))
-        _safe_merge(state, "email",            extraction.get("email"))
-        _safe_merge(state, "phone",            extraction.get("phone"))
-        _safe_merge(state, "issue",            extraction.get("issue"))
-        _safe_merge(state, "issue_type",       extraction.get("issue_type"))
-        _safe_merge(state, "problem_area",     extraction.get("problem_area"))
-        _safe_merge(state, "property_type",    extraction.get("property_type"))
-        _safe_merge(state, "is_homeowner",     extraction.get("is_homeowner"))
-        _safe_merge(state, "main_shutoff_off", extraction.get("main_shutoff_off"))
-        _safe_merge(state, "address",
-                    extraction.get("address") or extraction.get("location"))
-        for bf in ("has_water_damage", "is_getting_worse"):
-            if extraction.get(bf) is not None:
-                _safe_merge(state, bf, extraction[bf])
-        if extraction.get("urgency") and field_missing(state, "urgency"):
-            state["urgency"] = extraction["urgency"]
+        # Robust update: latest extracted values always overwrite if not null.
+        for field, value in extraction.items():
+            if value is None:
+                continue
 
-    # B. Apply classification
+            # Handle common LLM extraction variations
+            if field == "location" and not extraction.get("address"):
+                state["address"] = value
+            elif field in _COLLECTED_FIELDS or field == "description":
+                state[field] = value
+
+        # Explicitly handle appointment confirmation state transitions
+        if extraction.get("appt_confirmed"):
+            state["appt_booked"] = True
+
+    # B. Fallback: issue still null but message is clearly a service request
+    if field_missing(state, "issue") and last_user:
+        fallback = _issue_fallback(last_user)
+        if fallback:
+            state["issue"] = fallback
+            logger.debug("issue_fallback_applied", value=fallback,
+                         session_id=state.get("session_id"))
+
+    # C. Classification
     if isinstance(classification, Exception):
         logger.warning("classification_failed", error=str(classification),
                        session_id=state.get("session_id"))
@@ -151,15 +171,17 @@ async def node_enrich_lead(state: PlumbingState) -> PlumbingState:
         state["is_spam"]    = classification.get("is_spam", False)
         state["ai_summary"] = classification.get("summary")
         state["ai_urgency"] = classification.get("urgency", "normal")
-        if field_missing(state, "urgency") and int(state.get("turn_count", 0)) >= 2:
+        # Explicitly update urgency from AI if bot has had enough turns to form an opinion
+        # and extraction didn't already set it this turn.
+        if int(state.get("turn_count", 0)) >= 2:
             state["urgency"] = state["ai_urgency"]
 
-    # C. Fast-path emergency detection
+    # D. Emergency fast-path
     if field_missing(state, "issue_type") and _is_emergency(state):
         state["issue_type"] = "emergency"
 
-    # D. Appointment intent detection from last user message
-    if last_user and state.get("is_complete") and not state.get("wants_appointment"):
+    # E. Appointment intent — every turn, not gated on is_complete
+    if last_user and not state.get("wants_appointment"):
         msg_lower = last_user.lower()
         appt_keywords = {
             "book", "schedule", "appointment", "appt", "slot", "available",
@@ -241,8 +263,7 @@ async def node_score_lead(state: PlumbingState) -> PlumbingState:
 
 async def node_finalize_and_deliver(state: PlumbingState) -> PlumbingState:
     """
-    DB → delivery pipeline (Sheets + Email + WhatsApp + HubSpot).
-    Emergency SMS fires last if applicable.
+    DB → Sheets + Email + WhatsApp + HubSpot → optional emergency SMS.
     Each step isolated — failure never blocks the rest.
     """
     start = time.perf_counter()
@@ -254,7 +275,7 @@ async def node_finalize_and_deliver(state: PlumbingState) -> PlumbingState:
         state["duration_ms"] = _elapsed(start)
         return state
 
-    # ── Step 1: DB persistence ────────────────────────────────────────────────
+    # Step 1: DB
     try:
         async with get_db_context() as db:
             lead = Lead(
@@ -275,7 +296,7 @@ async def node_finalize_and_deliver(state: PlumbingState) -> PlumbingState:
         logger.error("plumbing_db_failed", error=str(exc),
                      session_id=state.get("session_id"))
 
-    # ── Step 2: Sheets + Email + WhatsApp + HubSpot ───────────────────────────
+    # Step 2: Sheets + Email + WhatsApp + HubSpot
     try:
         from tools.delivery_tools import run_delivery_pipeline
         pipeline_results = await run_delivery_pipeline(state)
@@ -287,7 +308,7 @@ async def node_finalize_and_deliver(state: PlumbingState) -> PlumbingState:
                      session_id=state.get("session_id"))
         await _send_fallback_sms(state)
 
-    # ── Step 3: Emergency SMS (additional channel) ────────────────────────────
+    # Step 3: Emergency SMS
     if _is_emergency(state) and state.get("phone"):
         await _send_emergency_sms(state)
 
@@ -299,17 +320,15 @@ async def _send_emergency_sms(state: PlumbingState) -> None:
     try:
         from twilio.rest import Client
         from core.config import settings
-        phone = _normalize_phone(state.get("phone", ""))
-        body = (
-            f"Emergency plumber dispatched to {state.get('address', 'your location')}. "
-            "Keep main shutoff CLOSED. Tech calls in 15 min."
-        )
         client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
         await asyncio.to_thread(
             client.messages.create,
             from_=settings.TWILIO_FROM_NUMBER,
-            to=phone,
-            body=body,
+            to=_normalize_phone(state.get("phone", "")),
+            body=(
+                f"Emergency plumber dispatched to {state.get('address', 'your location')}. "
+                "Keep main shutoff CLOSED. Tech calls in 15 min."
+            ),
         )
         logger.info("emergency_sms_sent", session_id=state.get("session_id"))
     except Exception as exc:
@@ -318,7 +337,6 @@ async def _send_emergency_sms(state: PlumbingState) -> None:
 
 
 async def _send_fallback_sms(state: PlumbingState) -> None:
-    """Last-resort SMS when the entire delivery pipeline fails."""
     phone = state.get("phone")
     if not phone:
         return

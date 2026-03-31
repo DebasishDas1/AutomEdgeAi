@@ -130,13 +130,12 @@ async def send_message(db: AsyncSession, session_id: str, user_msg: str) -> dict
 
     if result.get("is_complete") and not was_complete:
         try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(
+            asyncio.create_task(
                 run_post_chat(dict(result), row.vertical),
-                name=f"post_chat_{session_id[:8]}",
+                name=f"post_chat_{session_id[:12]}",
             )
-        except RuntimeError:
-            logger.error("post_chat_schedule_failed_no_loop", session_id=session_id)
+        except Exception as exc:
+            logger.error("post_chat_schedule_failed", session_id=session_id, error=str(exc))
 
     last_ai = next(
         (m["content"] for m in reversed(result.get("messages", []))

@@ -5,7 +5,7 @@ import logging
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import Lead
@@ -84,13 +84,24 @@ async def update_lead(db: AsyncSession, lead_id: UUID, data: LeadUpdate) -> Lead
 async def get_leads(
     db: AsyncSession,
     vertical: str | None = None,
-    limit: int = 50,
-    offset: int = 0,
-) -> list[LeadResponse]:
+    score:    str | None = None,
+    stage:    str | None = None,
+    limit:    int = 50,
+    offset:   int = 0,
+) -> tuple[list[LeadResponse], int]:
     q = select(Lead)
     if vertical:
         q = q.where(Lead.vertical == vertical)
+    if score:
+        q = q.where(Lead.score == score)
+    # Stage might be mapped to score or others, but for now filtering by score/status
+    
+    # Get total count before limit/offset
+    count_q = select(func.count()).select_from(q.subquery())
+    total = (await db.execute(count_q)).scalar() or 0
+
     rows = (
         await db.execute(q.order_by(Lead.created_at.desc()).limit(limit).offset(offset))
     ).scalars().all()
-    return [LeadResponse.model_validate(r) for r in rows]
+    
+    return [LeadResponse.model_validate(r) for r in rows], total

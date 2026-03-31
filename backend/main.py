@@ -2,11 +2,12 @@ import time
 import uuid
 import structlog
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import ORJSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from core.config import settings
 from core.database import init_db, engine
+from sqlalchemy import text
 from api.router import router
 from workflows.registry import registry
 from fastapi.middleware.gzip import GZipMiddleware
@@ -54,7 +55,7 @@ async def lifespan(app: FastAPI):
     logger.info("startup_begin", environment=settings.ENVIRONMENT)
     try:
         await init_db()
-        registry.initialize()          # compile all graphs now, not on first hit
+        await registry.initialize()          # compile all graphs now, not on first hit
         logger.info("startup_complete")
     except Exception as exc:
         logger.error("startup_failed", error=str(exc))
@@ -153,8 +154,26 @@ app.include_router(router, prefix="/api")
 
 @app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
-    """
-    Liveness probe. Returns 200 as long as the process is alive.
-    For a readiness probe (DB + graph warm), add a /ready endpoint separately.
-    """
+    """Liveness probe. Returns 200 as long as the process is alive."""
     return {"status": "ok", "service": "automedge-backend"}
+
+
+@app.get("/ready")
+async def readiness():
+    """
+    Readiness probe. Checks if DB is reachable and registry is warm.
+    """
+    # 1. Check DB
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+    except Exception as exc:
+        logger.error("readiness_db_failed", error=str(exc))
+        raise HTTPException(status_code=503, detail="database_unavailable")
+
+    # 2. Check Registry
+    if not registry.graphs:
+        logger.error("readiness_registry_empty")
+        raise HTTPException(status_code=503, detail="registry_not_initialized")
+
+    return {"status": "ready"}
