@@ -25,6 +25,7 @@ _COLLECTED_FIELDS = (
     "has_interior_leak", "has_insurance", "insurance_contacted",
     "adjuster_involved", "is_homeowner", "property_type",
     "address", "urgency", "name", "phone", "email",
+    "description",
 )
 
 # Minimum required: damage_type tells us storm vs wear (determines entire sales path),
@@ -46,9 +47,6 @@ def _utcnow() -> str:
 def _elapsed(start: float) -> int:
     return int((time.perf_counter() - start) * 1000)
 
-def _safe_merge(state: RoofingState, field: str, new_val) -> None:
-    if new_val is not None and field_missing(state, field):
-        state[field] = new_val
 
 def _is_storm_lead(state: RoofingState) -> bool:
     """Fast-path storm detection — no LLM tokens."""
@@ -110,29 +108,24 @@ async def node_enrich_lead(state: RoofingState) -> RoofingState:
         (m["content"] for m in reversed(messages) if m.get("role") == "user"), None
     )
 
-    # A. Extract roofing fields from last user message only
+    # A. Extract roofing fields from latest message
     if last_user:
         try:
             extraction = await ai_tools.extract_roofing_fields(last_user)
             if extraction:
-                _safe_merge(state, "name",   extraction.get("name"))
-                _safe_merge(state, "email",  extraction.get("email"))
-                _safe_merge(state, "phone",  extraction.get("phone"))
-                _safe_merge(state, "damage_type",   extraction.get("damage_type"))
-                _safe_merge(state, "damage_detail",  extraction.get("damage_detail"))
-                _safe_merge(state, "storm_date",     extraction.get("storm_date"))
-                _safe_merge(state, "roof_age",       extraction.get("roof_age"))
-                _safe_merge(state, "property_type",  extraction.get("property_type"))
-                _safe_merge(state, "is_homeowner",   extraction.get("is_homeowner"))
-                addr = extraction.get("address") or extraction.get("location")
-                _safe_merge(state, "address", addr)
-                # Boolean flags — allow update (insurance status can change)
-                for bf in ("has_insurance", "insurance_contacted",
-                           "adjuster_involved", "has_interior_leak"):
-                    if extraction.get(bf) is not None:
-                        _safe_merge(state, bf, extraction[bf])
-                if extraction.get("urgency") and field_missing(state, "urgency"):
-                    state["urgency"] = extraction["urgency"]
+                # Robust update: latest extracted non-null values always overwrite existing state.
+                # This ensures info like insurance status or address correctly updates.
+                for field, value in extraction.items():
+                    if value is None:
+                        continue
+
+                    # Handle common variations
+                    if field == "location" and not extraction.get("address"):
+                        state["address"] = value
+                    elif field in _COLLECTED_FIELDS:
+                        state[field] = value
+                    elif field == "description":
+                        state[field] = value
         except Exception as exc:
             logger.warning("roofing_extraction_failed", error=str(exc),
                            session_id=state.get("session_id"))
@@ -145,7 +138,7 @@ async def node_enrich_lead(state: RoofingState) -> RoofingState:
             state["is_spam"]    = classification.get("is_spam", False)
             state["ai_summary"] = classification.get("summary")
             state["ai_urgency"] = classification.get("urgency", "normal")
-            if field_missing(state, "urgency") and int(state.get("turn_count", 0)) >= 2:
+            if int(state.get("turn_count", 0)) >= 2:
                 state["urgency"] = state["ai_urgency"]
     except Exception as exc:
         logger.warning("classification_failed", error=str(exc),

@@ -141,6 +141,27 @@ def build_chat_reply_node(
             "",
         )
 
+        # Standardize completion message if session is already complete.
+        if state.get("is_complete"):
+            # Check if we've already acknowledged the recording in the conversation
+            already_acknowledged = any(
+                "recorded" in m.get("content", "").lower()
+                for m in reversed(state.get("messages", []))
+                if m.get("role") == "assistant"
+            )
+            if not already_acknowledged:
+                completion_instr = (
+                    "\n\nSESSION IS COMPLETE. Respond with a short, professional closing. "
+                    "Include: 'Your interaction is recorded', 'Let's schedule a service', and "
+                    "'Let us know what more we can help with' (or natural variations)."
+                )
+            else:
+                completion_instr = (
+                    "\n\nSession remains complete. Briefly offer further assistance "
+                    "('Let us know what more we can help with') without repeating the recorded interaction."
+                )
+            system_prompt += completion_instr
+
         reply = await llm.ainvoke([
             SystemMessage(content=system_prompt),
             HumanMessage(content=last_user),

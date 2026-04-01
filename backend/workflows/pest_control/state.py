@@ -16,6 +16,7 @@ class PestState(TypedDict, total=False):
     name:          Optional[str]
     email:         Optional[str]
     phone:         Optional[str]
+    description:   Optional[str]
     # Pest-specific collected fields
     pest_type:        Optional[str]   # termites|bed bugs|rodents|ants|cockroaches|spiders|wasps|mosquitoes|fleas
     infestation_area: Optional[str]

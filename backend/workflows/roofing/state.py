@@ -16,6 +16,7 @@ class RoofingState(TypedDict, total=False):
     name:          Optional[str]
     email:         Optional[str]
     phone:         Optional[str]
+    description:   Optional[str]
     # Roofing-specific collected fields
     damage_type:          Optional[str]   # storm | wear | unknown
     damage_detail:        Optional[str]   # specific description

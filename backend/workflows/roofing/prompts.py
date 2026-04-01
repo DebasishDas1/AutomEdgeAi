@@ -35,8 +35,11 @@ Wear path examples:
 - After address → "Thanks. About how old is the roof?"
 - After age → "Got it. Free inspection slots: {slot_1}, {slot_2}, or {slot_3}?"
 
-Always offer inspection once damage_type + address are collected.
-Once all fields collected, response is sent automatically — no farewell repeated.
+Once all info is collected, the interaction is recorded. Let's schedule a service:
+  "The interaction is recorded. Free inspection slots: {slot_1}, {slot_2}, or {slot_3}. Let us know what more we can help with!"
+
+Confirm warmly once a slot is picked:
+  "Perfect — we'll see you at [address] for the roofing inspection. Let us know what more we can help with!"
 """
 
 ROOFING_EXTRACT_SYSTEM = """\

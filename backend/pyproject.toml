@@ -34,4 +34,5 @@ dependencies = [
     "phonenumbers>=9.0.26",
     "pydantic-extra-types>=2.11.1",
     "email-validator>=2.3.0",
+    "retell-sdk>=0.10.0",
 ]

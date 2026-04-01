@@ -30,9 +30,6 @@ def _utcnow() -> str:
 def _elapsed(start: float) -> int:
     return int((time.perf_counter() - start) * 1000)
 
-def _safe_merge(state: HvacState, field: str, new_val) -> None:
-    if new_val is not None and field_missing(state, field):
-        state[field] = new_val
 
 def _migrate_legacy_fields(state: HvacState) -> None:
     """Fix old sessions that used 'location' instead of 'address'."""
@@ -86,22 +83,22 @@ async def node_enrich_lead(state: HvacState) -> HvacState:
         (m["content"] for m in reversed(messages) if m.get("role") == "user"), None
     )
 
-    # A. Extract contact fields from last user message only
+    # A. Extract contact fields from history (focus on latest user input)
     if last_user:
         try:
             extraction = await ai_tools.extract_fields(last_user)
             if extraction:
-                _safe_merge(state, "name",         extraction.get("name"))
-                _safe_merge(state, "email",        extraction.get("email"))
-                _safe_merge(state, "phone",        extraction.get("phone"))
-                _safe_merge(state, "issue",        extraction.get("issue"))
-                _safe_merge(state, "description",  extraction.get("description"))
-                _safe_merge(state, "is_homeowner", extraction.get("is_homeowner"))
-                addr = extraction.get("address") or extraction.get("location")
-                _safe_merge(state, "address", addr)
-                extracted_urgency = extraction.get("urgency")
-                if extracted_urgency and field_missing(state, "urgency"):
-                    state["urgency"] = extracted_urgency
+                # Latest extracted non-null values always overwrite existing state.
+                # This ensures corrections like changing a ZIP or phone update correctly.
+                for field, value in extraction.items():
+                    if value is None:
+                        continue
+
+                    # Handle common LLM extraction variations
+                    if field == "location" and not extraction.get("address"):
+                        state["address"] = value
+                    elif field in _COLLECTED_FIELDS:
+                        state[field] = value
         except Exception as exc:
             logger.warning("field_extraction_failed", error=str(exc),
                            session_id=state.get("session_id"))
@@ -114,8 +111,9 @@ async def node_enrich_lead(state: HvacState) -> HvacState:
             state["is_spam"]    = classification.get("is_spam", False)
             state["ai_summary"] = classification.get("summary")
             state["ai_urgency"] = classification.get("urgency", "normal")
-            # Promote ai_urgency after 2+ turns if still unset
-            if field_missing(state, "urgency") and int(state.get("turn_count", 0)) >= 2:
+            # Overwrite urgency from AI after 2+ turns to form an opinion. 
+            # Note: extraction already sets 'urgency' above if found.
+            if int(state.get("turn_count", 0)) >= 2:
                 state["urgency"] = state["ai_urgency"]
                 logger.debug("urgency_promoted", urgency=state["urgency"],
                              session_id=state.get("session_id"))

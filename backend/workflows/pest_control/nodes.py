@@ -25,6 +25,7 @@ _COLLECTED_FIELDS = (
     "pest_type", "infestation_area", "duration", "has_damage",
     "tried_treatment", "is_homeowner", "property_type", "address",
     "urgency", "wants_annual", "name", "phone", "email",
+    "description",
 )
 
 # Fields required before is_complete fires.
@@ -39,10 +40,6 @@ def _utcnow() -> str:
 def _elapsed(start: float) -> int:
     return int((time.perf_counter() - start) * 1000)
 
-def _safe_merge(state: PestState, field: str, new_val) -> None:
-    """Only write if field not already captured."""
-    if new_val is not None and field_missing(state, field):
-        state[field] = new_val
 
 
 # ── 1. Validate ───────────────────────────────────────────────────────────────
@@ -83,30 +80,23 @@ async def node_enrich_lead(state: PestState) -> PestState:
         (m["content"] for m in reversed(messages) if m.get("role") == "user"), None
     )
 
-    # A. Extract pest-specific fields from last user message
+    # A. Extract pest-specific fields from latest message
     if last_user:
         try:
             extraction = await ai_tools.extract_pest_fields(last_user)
             if extraction:
-                # Contact fields (usually from form, but catch if stated in chat)
-                _safe_merge(state, "name",  extraction.get("name"))
-                _safe_merge(state, "email", extraction.get("email"))
-                _safe_merge(state, "phone", extraction.get("phone"))
-                # Pest-specific fields — safe merge so first capture wins
-                _safe_merge(state, "pest_type",        extraction.get("pest_type"))
-                _safe_merge(state, "infestation_area", extraction.get("infestation_area"))
-                _safe_merge(state, "duration",         extraction.get("duration"))
-                _safe_merge(state, "property_type",    extraction.get("property_type"))
-                addr = extraction.get("address") or extraction.get("location")
-                _safe_merge(state, "address", addr)
-                # Boolean fields — only set if explicitly stated
-                for bool_field in ("has_damage", "tried_treatment", "is_homeowner", "wants_annual"):
-                    val = extraction.get(bool_field)
-                    if val is not None:
-                        _safe_merge(state, bool_field, val)
-                # Urgency from extraction — only if explicit
-                if extraction.get("urgency") and field_missing(state, "urgency"):
-                    state["urgency"] = extraction["urgency"]
+                # Robust update: latest extracted values always overwrite if not null.
+                for field, value in extraction.items():
+                    if value is None:
+                        continue
+
+                    # Handle common variations
+                    if field == "location" and not extraction.get("address"):
+                        state["address"] = value
+                    elif field in _COLLECTED_FIELDS:
+                        state[field] = value
+                    elif field == "description":
+                        state[field] = value
         except Exception as exc:
             logger.warning("pest_extraction_failed", error=str(exc),
                            session_id=state.get("session_id"))
@@ -119,8 +109,8 @@ async def node_enrich_lead(state: PestState) -> PestState:
             state["is_spam"]    = classification.get("is_spam", False)
             state["ai_summary"] = classification.get("summary")
             state["ai_urgency"] = classification.get("urgency", "normal")
-            # Promote after 2+ turns if urgency not explicitly stated
-            if field_missing(state, "urgency") and int(state.get("turn_count", 0)) >= 2:
+            # Update urgency from AI if form hasn't explicitly set it.
+            if int(state.get("turn_count", 0)) >= 2:
                 state["urgency"] = state["ai_urgency"]
     except Exception as exc:
         logger.warning("classification_failed", error=str(exc),

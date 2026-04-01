@@ -7,10 +7,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Mic } from "lucide-react";
+import { Mic, PhoneOff, PhoneCall, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { m } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
+import { createWebCall } from "@/lib/api/retell";
+
+// Lazy load Retell SDK to avoid SSR issues
+let RetellWebClient: any;
 
 type CallAgentProp = {
   type:
@@ -22,37 +26,81 @@ type CallAgentProp = {
     | "pest_control";
 };
 
+type CallStatus = "idle" | "connecting" | "active" | "error";
+
 export const CallAgent = ({ type }: CallAgentProp) => {
   const [open, setOpen] = useState(false);
-  const streamRef = useRef<MediaStream | null>(null);
+  const [status, setStatus] = useState<CallStatus>("idle");
+  const retellClientRef = useRef<any>(null);
 
   useEffect(() => {
-    const requestMic = async () => {
-      if (open) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
+    if (!open) {
+      if (retellClientRef.current) {
+        retellClientRef.current.stopCall();
+      }
+      setStatus("idle");
+      return;
+    }
+
+    const startCall = async () => {
+      try {
+        setStatus("connecting");
+        
+        // 1. Get session from backend
+        const { access_token } = await createWebCall();
+        
+        // 2. Initialize Retell client if not already
+        if (!RetellWebClient) {
+          const mod = await import("retell-client-js-sdk");
+          RetellWebClient = mod.RetellWebClient;
+        }
+
+        if (!retellClientRef.current) {
+          retellClientRef.current = new RetellWebClient();
+          
+          retellClientRef.current.on("call_started", () => {
+            console.log("Call started");
+            setStatus("active");
           });
-          streamRef.current = stream;
-        } catch (err) {
-          console.error("Microphone access denied:", err);
+
+          retellClientRef.current.on("call_ended", () => {
+            console.log("Call ended");
+            setStatus("idle");
+            setOpen(false);
+          });
+
+          retellClientRef.current.on("error", (err: any) => {
+            console.error("Retell error:", err);
+            setStatus("error");
+          });
         }
-      } else {
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach((track) => track.stop());
-          streamRef.current = null;
-        }
+
+        // 3. Start the call
+        await retellClientRef.current.startCall({
+          accessToken: access_token,
+        });
+
+      } catch (err) {
+        console.error("Failed to start call:", err);
+        setStatus("error");
       }
     };
 
-    requestMic();
+    startCall();
 
     return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
+      if (retellClientRef.current) {
+        retellClientRef.current.stopCall();
       }
     };
   }, [open]);
+
+  const handleStop = () => {
+    if (retellClientRef.current) {
+      retellClientRef.current.stopCall();
+    }
+    setOpen(false);
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -95,59 +143,97 @@ export const CallAgent = ({ type }: CallAgentProp) => {
       >
         <DialogHeader className="text-center w-full">
           <DialogTitle className="text-3xl sm:text-4xl font-bold tracking-tight text-center">
-            Let's talk
+            {status === "connecting" ? "Initializing..." : 
+             status === "active" ? "AI Agent Live" : 
+             status === "error" ? "Connection Failed" : "Let's talk"}
           </DialogTitle>
+          <p className="text-muted-foreground mt-2">
+            {status === "active" ? "Connected and listening..." : 
+             status === "connecting" ? "Setting up your secure line." : 
+             status === "error" ? "Please check your mic and try again." : 
+             "Our AI agent is ready to help you."}
+          </p>
         </DialogHeader>
 
-        {/* Center Mic Visualizer - Simplified & Refined for Mobile */}
+        {/* Center Mic Visualizer */}
         <div className="relative flex items-center justify-center flex-1 w-full my-8">
           {/* Ambient Glow */}
           <m.div
             animate={{
-              scale: [1, 1.15, 1],
-              opacity: [0.2, 0.35, 0.2],
+              scale: status === "active" ? [1, 1.3, 1] : [1, 1.15, 1],
+              opacity: status === "active" ? [0.3, 0.6, 0.3] : [0.2, 0.35, 0.2],
             }}
-            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute w-40 h-40 bg-accent/20 rounded-full blur-[60px]"
+            transition={{ duration: status === "active" ? 2 : 4, repeat: Infinity, ease: "easeInOut" }}
+            className={`absolute w-40 h-40 ${status === "error" ? 'bg-destructive/20' : 'bg-accent/20'} rounded-full blur-[60px]`}
           />
 
           {/* Staggered Ripples */}
-          {[1, 2].map((i) => (
+          {(status === "active" || status === "connecting") && [1, 2, 3].map((i) => (
             <m.div
               key={i}
               animate={{
-                scale: [1, 2.2],
-                opacity: [0.3, 0],
+                scale: [1, 2.5],
+                opacity: [0.4, 0],
               }}
               transition={{
-                duration: 3,
+                duration: status === "active" ? 2 : 3,
                 repeat: Infinity,
-                delay: i * 1,
+                delay: i * 0.6,
                 ease: "easeOut",
               }}
-              className="absolute w-24 h-24 border border-accent/30 rounded-full"
+              className="absolute w-24 h-24 border border-accent/40 rounded-full"
             />
           ))}
 
           {/* Core Icon Container */}
           <m.div
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            className="relative z-10 w-20 h-20 rounded-full bg-accent flex items-center justify-center shadow-xl shadow-accent/20"
+            animate={status === "active" ? { scale: [1, 1.1, 1] } : { scale: [1, 1.05, 1] }}
+            transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
+            className={`
+              relative z-10 w-24 h-24 rounded-full 
+              ${status === "error" ? 'bg-destructive' : 'bg-accent'} 
+              flex items-center justify-center 
+              shadow-2xl shadow-accent/40
+            `}
           >
-            <Mic size={38} className="text-white drop-shadow-md" />
+            {status === "connecting" ? (
+              <Loader2 size={42} className="text-white animate-spin" />
+            ) : status === "active" ? (
+              <PhoneCall size={42} className="text-white animate-pulse" />
+            ) : status === "error" ? (
+              <Mic size={42} className="text-white opacity-50" />
+            ) : (
+              <Mic size={42} className="text-white" />
+            )}
           </m.div>
         </div>
 
-        <Button
-          onClick={() => setOpen(false)}
-          className="
-              rounded-2xl h-14 text-lg font-semibold w-full
-              shadow-lg shadow-accent/20 transition-all active:scale-95
-            "
-        >
-          Stop Agent
-        </Button>
+        <div className="flex flex-col gap-3 w-full">
+          <Button
+            onClick={handleStop}
+            variant={status === "error" ? "outline" : "default"}
+            className="
+                rounded-2xl h-14 text-lg font-semibold w-full
+                shadow-lg shadow-accent/20 transition-all active:scale-95
+                flex items-center justify-center gap-2
+              "
+          >
+            {status === "active" ? (
+              <>
+                <PhoneOff size={20} />
+                End Call
+              </>
+            ) : status === "error" ? (
+              "Try Again"
+            ) : (status === "connecting" ? "Connecting..." : "Stop Agent")}
+          </Button>
+          
+          {status === "active" && (
+             <p className="text-[10px] text-center text-muted-foreground uppercase tracking-widest">
+                Secure encrypted web call
+             </p>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

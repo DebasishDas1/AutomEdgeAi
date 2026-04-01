@@ -25,16 +25,16 @@ def field_missing(state: dict, key: str) -> bool:
 
 def merge_extracted(state: dict, extracted: dict) -> dict:
     """
-    Merge extracted fields into state without overwriting existing values.
-    Fix: original mutated `state` directly — fine for dicts but annotated here
-    for clarity that this is an in-place operation.
+    Merge extracted fields into state. Latest non-null values overwrite existing values.
+    This ensures the state stays updated across multiple turns if information changes.
     """
     for k, v in extracted.items():
-        if v is None:
-            continue
-        if field_missing(state, k):
-            state[k] = v
-            logger.debug("field_captured", key=k, value=repr(v))
+        if v is not None:
+            # Handle address fallback if 'address' key missing but 'location' present
+            if k == "location" and not extracted.get("address"):
+                state["address"] = v
+            else:
+                state[k] = v
     return state
 
 

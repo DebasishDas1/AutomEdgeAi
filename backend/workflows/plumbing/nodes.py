@@ -124,7 +124,7 @@ async def node_enrich_lead(state: PlumbingState) -> PlumbingState:
         return None
 
     extraction, classification = await asyncio.gather(
-        ai_tools.extract_plumbing_fields(full_transcript(state)),
+        ai_tools.extract_plumbing_fields(last_user) if last_user else _noop(),
         ai_tools.classify_conversation(messages),
         return_exceptions=True,
     )

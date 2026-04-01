@@ -12,7 +12,6 @@ from api.router import router
 from workflows.registry import registry
 from fastapi.middleware.gzip import GZipMiddleware
 
-
 # ── Logging config ────────────────────────────────────────────────────────────
 # FIX: structlog.configure() is called at module import time — fine.
 # But the ternary evaluated settings.ENVIRONMENT at import too, which is correct.
@@ -151,29 +150,7 @@ async def request_isolation_middleware(request: Request, call_next):
 
 app.include_router(router, prefix="/api")
 
-
 @app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
     """Liveness probe. Returns 200 as long as the process is alive."""
     return {"status": "ok", "service": "automedge-backend"}
-
-
-@app.get("/ready")
-async def readiness():
-    """
-    Readiness probe. Checks if DB is reachable and registry is warm.
-    """
-    # 1. Check DB
-    try:
-        async with engine.connect() as conn:
-            await conn.execute(text("SELECT 1"))
-    except Exception as exc:
-        logger.error("readiness_db_failed", error=str(exc))
-        raise HTTPException(status_code=503, detail="database_unavailable")
-
-    # 2. Check Registry
-    if not registry.graphs:
-        logger.error("readiness_registry_empty")
-        raise HTTPException(status_code=503, detail="registry_not_initialized")
-
-    return {"status": "ready"}

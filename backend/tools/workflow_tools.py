@@ -16,7 +16,7 @@ from workflows.registry import registry
 logger = structlog.get_logger(__name__)
 
 
-async def _save_session(db: AsyncSession, row: ChatSession, state) -> None:
+async def _save_session(db: AsyncSession, row: ChatSession, state: dict[str, Any]) -> None:
     """Normalize and persist LangGraph state. Caller must commit."""
     if isinstance(state, str):
         state = {"messages": [{"role": "assistant", "content": state}], "is_complete": False}
@@ -108,8 +108,6 @@ async def send_message(db: AsyncSession, session_id: str, user_msg: str) -> dict
 
     if row is None:
         raise ValueError("session_not_found")
-    if row.is_complete:
-        raise ValueError("session_already_complete")
 
     state = dict(row.state)
     graph_input = {

@@ -121,6 +121,12 @@ class Settings(BaseSettings):
     TEAM_EMAIL: str = "team@automedge.com"
 
     # -------------------------
+    # Retell AI
+    # -------------------------
+    RETELL_API_KEY: Optional[str] = None
+    RETELL_AGENT_ID: Optional[str] = None
+
+    # -------------------------
     # Helpers (Safe JSON parsing)
     # -------------------------
     def _safe_json(self, value: Optional[str]) -> dict | None:

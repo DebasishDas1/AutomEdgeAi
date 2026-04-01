@@ -9,6 +9,7 @@ from typing import AsyncGenerator, Literal
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from tools import workflow_tools
 from workflows.registry import registry
@@ -66,7 +67,7 @@ class MessageResponse(BaseModel):
 
 # ── Handler functions ─────────────────────────────────────────────────────────
 
-async def handle_start(vertical: Vertical, body: StartRequest, db) -> dict:
+async def handle_start(vertical: Vertical, body: StartRequest, db: AsyncSession) -> dict:
     """
     Start a new chat session for the given vertical.
 
@@ -90,7 +91,7 @@ async def handle_start(vertical: Vertical, body: StartRequest, db) -> dict:
         raise HTTPException(status_code=500, detail="start_failed")
 
 
-async def handle_message(body: MessageRequest, db) -> dict:
+async def handle_message(body: MessageRequest, db: AsyncSession) -> dict:
     """
     Process a user message in an existing session.
     """
@@ -111,7 +112,7 @@ async def handle_message(body: MessageRequest, db) -> dict:
         raise HTTPException(status_code=500, detail="processing_error")
 
 
-async def handle_message_stream(body: MessageRequest, db) -> StreamingResponse:
+async def handle_message_stream(body: MessageRequest, db: AsyncSession) -> StreamingResponse:
     """
     SSE streaming endpoint for real-time token delivery.
 
@@ -145,8 +146,6 @@ async def handle_message_stream(body: MessageRequest, db) -> StreamingResponse:
 
     if row is None:
         raise HTTPException(status_code=404, detail="session_not_found")
-    if row.is_complete:
-        raise HTTPException(status_code=400, detail="session_already_complete")
 
     # Snapshot values we need inside the generator (db session must NOT be used there)
     vertical = row.vertical
