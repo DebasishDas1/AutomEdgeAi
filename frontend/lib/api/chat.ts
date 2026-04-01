@@ -73,8 +73,13 @@ async function post<T>(
   }
 }
 
-// Maps "general" → "hvac" — backend has no /general vertical
-const toApiVertical = (v: string) => (v === "general" ? "hvac" : v);
+// Maps frontend-facing vertical names to backend URL slugs.
+// CRITICAL: backend uses /pest-control (hyphen) but stores "pest_control" (underscore).
+const VERTICAL_URL_MAP: Record<string, string> = {
+  general:      "hvac",
+  pest_control: "pest-control",
+};
+const toApiVertical = (v: string): string => VERTICAL_URL_MAP[v] ?? v;
 
 // ── API calls ─────────────────────────────────────────────────────────────────
 

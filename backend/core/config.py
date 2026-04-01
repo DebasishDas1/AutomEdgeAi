@@ -119,12 +119,16 @@ class Settings(BaseSettings):
     # -------------------------
     BUSINESS_PHONE: str = "+1-555-000-0000"
     TEAM_EMAIL: str = "team@automedge.com"
+    CLINIC_NAME: str = "Automedge Clinic"
+    RETELL_CLINIC_EMAIL: Optional[str] = None
+    TEAM_WHATSAPP_NUMBER: Optional[str] = None
 
     # -------------------------
     # Retell AI
     # -------------------------
     RETELL_API_KEY: Optional[str] = None
     RETELL_AGENT_ID: Optional[str] = None
+    RETELL_WEBHOOK_SECRET: Optional[str] = None
 
     # -------------------------
     # Helpers (Safe JSON parsing)

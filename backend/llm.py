@@ -36,7 +36,9 @@ class LLMManager:
     async def ainvoke(
         self,
         messages: List[BaseMessage],
-        full_history: bool = False,   # NEW: skip trimming for classification calls
+        session_id: str = "global",
+        full_history: bool = False,
+        use_cache: bool = False,   # FIX: explicitly opt-in. Chat replies must NOT be cached.
         **kwargs,
     ) -> Any:
         system_msg = next((m for m in messages if isinstance(m, SystemMessage)), None)
@@ -52,12 +54,17 @@ class LLMManager:
         logger.debug("llm_request",
             model=type(self._select()).__name__,
             msg_count=len(trimmed),
+            session_id=session_id,
             full_history=full_history,
             last_user=(other_msgs[-1].content[:60] if other_msgs else ""),
         )
 
+        # FIX: cache key MUST include session context to prevent data leakage 
+        # across users in a shared process cache.
         key = [(type(m).__name__, m.content) for m in trimmed]
-        if settings.ENVIRONMENT != "dev":
+        key.append(("session_id", session_id))
+
+        if use_cache and settings.ENVIRONMENT != "dev":
             cached = await cache.get("llm", key)
             if cached:
                 return cached
@@ -66,7 +73,7 @@ class LLMManager:
             target = self._select()
             try:
                 resp = await self._call(target, trimmed, **kwargs)
-                if settings.ENVIRONMENT != "dev":
+                if use_cache and settings.ENVIRONMENT != "dev":
                     await cache.set("llm", key, resp, ttl=1800)
                 return resp
             except Exception as exc:

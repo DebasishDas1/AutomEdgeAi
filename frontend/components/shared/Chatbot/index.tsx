@@ -119,8 +119,8 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
   const isCompleteRef = useRef(false);
 
   const handleBotComplete = useCallback(() => {
-    setIsComplete(true);
-    isCompleteRef.current = true;
+    // setIsComplete(true);
+    // isCompleteRef.current = true;
 
     toast.success("Your inquiry has been successfully received by our team.", {
       description: "We've received your message and will follow up shortly.",

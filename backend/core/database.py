@@ -113,6 +113,50 @@ class WorkflowEvent(Base):
     created_at    = Column(DateTime(timezone=True), default=_now)
 
 
+class CallLog(Base):
+    __tablename__ = "call_logs"
+    id                 = Column(Integer, primary_key=True)
+    retell_call_id     = Column(String, unique=True, index=True)
+    transcript         = Column(Text)
+    summary            = Column(Text)
+    recording_url      = Column(String)
+    patient_phone      = Column(String)
+    patient_name       = Column(String)
+    patient_email      = Column(String)
+    appointment_booked = Column(Boolean, default=False)
+    appointment_date   = Column(String)
+    appointment_time   = Column(String)
+    duration_sec       = Column(Integer)
+    disconnect_reason  = Column(String)
+    event_type         = Column(String)
+    created_at         = Column(DateTime(timezone=True), default=_now)
+
+
+class Appointment(Base):
+    __tablename__ = "appointments"
+    id               = Column(Integer, primary_key=True)
+    call_log_id      = Column(String) # Link to call_logs.retell_call_id
+    patient_name     = Column(String)
+    patient_phone    = Column(String)
+    patient_email    = Column(String)
+    appointment_date = Column(String)
+    appointment_time = Column(String)
+    status           = Column(String, default="scheduled")
+    created_at       = Column(DateTime(timezone=True), default=_now)
+
+
+class MissedCall(Base):
+    __tablename__ = "missed_calls"
+    id             = Column(Integer, primary_key=True)
+    call_log_id    = Column(String)
+    patient_name   = Column(String)
+    patient_phone  = Column(String)
+    patient_email  = Column(String)
+    summary        = Column(Text)
+    follow_up_sent = Column(Boolean, default=False)
+    created_at     = Column(DateTime(timezone=True), default=_now)
+
+
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
 async def get_db():
@@ -142,6 +186,9 @@ __all__ = [
     "ChatSession",
     "Booking",
     "WorkflowEvent",
+    "CallLog",
+    "Appointment",
+    "MissedCall",
     "get_db",
     "get_db_context",
     "init_db",

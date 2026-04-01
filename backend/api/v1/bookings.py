@@ -1,5 +1,5 @@
 # api/v1/bookings.py
-import logging
+import structlog
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +8,7 @@ from core.database import get_db
 from models.booking import BookingCreate, BookingResponse
 from tools import booking_tools
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 router = APIRouter()
 
 

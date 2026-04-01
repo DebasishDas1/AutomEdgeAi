@@ -7,6 +7,11 @@ from fastapi.responses import ORJSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from core.config import settings
 from core.database import init_db, engine
+from core.exceptions import (
+    AutomedgeException,
+    automedge_exception_handler,
+    generic_exception_handler,
+)
 from sqlalchemy import text
 from api.router import router
 from workflows.registry import registry
@@ -53,8 +58,15 @@ async def lifespan(app: FastAPI):
     """
     logger.info("startup_begin", environment=settings.ENVIRONMENT)
     try:
+        from retell import Retell
+        from core.firebase import init_firebase  # init once, not per-request
         await init_db()
         await registry.initialize()          # compile all graphs now, not on first hit
+        init_firebase()                      # eliminates concurrent-init race condition
+
+        # Initialize Retell client once for pooling
+        app.state.retell = Retell(api_key=settings.RETELL_API_KEY)
+
         logger.info("startup_complete")
     except Exception as exc:
         logger.error("startup_failed", error=str(exc))
@@ -75,11 +87,11 @@ app = FastAPI(
     title="Automedge AI Backend",
     version="1.0.0",
     lifespan=lifespan,
-    # default_response_class=ORJSONResponse,
-    # FIX: disable /docs and /redoc in production — they leak your full API schema.
-    # docs_url="/docs" if settings.ENVIRONMENT == "dev" else None,
-    # redoc_url="/redoc" if settings.ENVIRONMENT == "dev" else None,
 )
+
+# Register central exception handlers
+app.add_exception_handler(AutomedgeException, automedge_exception_handler)
+app.add_exception_handler(Exception, generic_exception_handler)
 
 
 # ── Middleware ────────────────────────────────────────────────────────────────

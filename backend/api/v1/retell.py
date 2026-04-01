@@ -2,6 +2,8 @@
 # Retell AI post-call webhook endpoint.
 from __future__ import annotations
 
+import hmac
+import hashlib
 import structlog
 
 from fastapi import APIRouter, BackgroundTasks, Request, HTTPException
@@ -37,8 +39,8 @@ async def create_web_call():
         raise HTTPException(status_code=500, detail="RETELL_AGENT_ID not configured")
 
     try:
-        from retell import Retell
-        client = Retell(api_key=settings.RETELL_API_KEY)
+        # Use the singleton client from app.state
+        client = request.app.state.retell
         
         # Create a web call
         web_call_response = client.web_call.create(
@@ -75,10 +77,24 @@ async def retell_post_call(
       Post-call webhook URL: https://your-domain.com/api/v1/retell/post-call
     """
 
-    # ── 1. Parse body ─────────────────────────────────────────────────────────
-    # Retell sends Content-Type: application/json.
-    # Swagger UI sends an empty body when testing — handle both gracefully.
+    # ── 1. HMAC Verification (Security Hardening) ──────────────────────────────
+    # Retell sends an 'x-retell-signature' header. We must verify it.
+    signature = request.headers.get("x-retell-signature")
     body = await request.body()
+    
+    if signature and settings.RETELL_WEBHOOK_SECRET:
+        expected = hmac.new(
+            settings.RETELL_WEBHOOK_SECRET.encode(),
+            body,
+            hashlib.sha256
+        ).hexdigest()
+        
+        if not hmac.compare_digest(signature, expected):
+            logger.warning("retell_webhook_invalid_signature", signature=signature)
+            raise HTTPException(status_code=401, detail="invalid_signature")
+    elif not signature and settings.ENVIRONMENT != "dev":
+        # Signature is mandatory in production
+        raise HTTPException(status_code=401, detail="missing_signature")
 
     if not body:
         # Empty body — likely a health-check ping or Swagger test
@@ -86,7 +102,8 @@ async def retell_post_call(
         return JSONResponse({"status": "ok", "detail": "empty_body"})
 
     try:
-        payload = await request.json()
+        import json
+        payload = json.loads(body)
     except Exception as exc:
         # Malformed JSON — log and return 200 so Retell doesn't endlessly retry
         logger.warning("retell_webhook_bad_json", error=str(exc))

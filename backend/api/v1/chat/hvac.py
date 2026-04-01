@@ -1,5 +1,5 @@
 # api/v1/chat/hvac.py
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, BackgroundTasks
 from fastapi.responses import StreamingResponse
 
 from api.deps import get_db
@@ -37,29 +37,24 @@ async def start(body: StartRequest, db=Depends(get_db)):
     response_model=MessageResponse,
     summary="Send a message in an HVAC session",
 )
-async def message(body: MessageRequest, db=Depends(get_db)):
-    """
-    Send a user message and receive the AI reply.
-    The graph advances one turn per call.
-    """
-    return await handle_message(body, db)
+async def message(
+    background_tasks: BackgroundTasks,
+    body: MessageRequest,
+    db=Depends(get_db),
+):
+    """Send a user message and receive the AI reply."""
+    return await handle_message(body, db, background_tasks)
 
 
 @router.post(
     "/message/stream",
     response_class=StreamingResponse,
     summary="Stream an HVAC AI reply via SSE",
-    # FIX: FastAPI can't infer the response model for StreamingResponse.
-    # Explicitly exclude from schema generation to avoid misleading docs.
     include_in_schema=True,
 )
-async def message_stream(body: MessageRequest, db=Depends(get_db)):
-    """
-    Server-Sent Events endpoint. Streams AI reply tokens as they are generated.
-
-    Response format:
-      data: {"chunk": "<token>"}   — repeated per token
-      data: [DONE]                 — signals stream end
-      data: {"error": "..."}      — on failure
-    """
-    return await handle_message_stream(body, db)
+async def message_stream(
+    background_tasks: BackgroundTasks,
+    body: MessageRequest,
+    db=Depends(get_db),
+):
+    return await handle_message_stream(body, db, background_tasks)

@@ -19,11 +19,12 @@ def _patient_confirmation_html(d: dict) -> str:
     name  = h.escape(d.get("patient_name") or "")
     date  = h.escape(d.get("appointment_date") or "—")
     time_ = h.escape(d.get("appointment_time") or "—")
+    clinic = settings.CLINIC_NAME
     return f"""
 <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
   <h2 style="color:#0D1B2A;">Appointment Confirmed!</h2>
   <p>Hi {name},</p>
-  <p>Your appointment at <strong>Mainak Chiropractic</strong> is confirmed.</p>
+  <p>Your appointment at <strong>{clinic}</strong> is confirmed.</p>
   <table style="width:100%;border-collapse:collapse;margin:16px 0;">
     <tr><td style="color:#666;padding:6px 0;width:80px;">Date</td>
         <td style="font-weight:500;">{date}</td></tr>
@@ -31,7 +32,7 @@ def _patient_confirmation_html(d: dict) -> str:
         <td style="font-weight:500;">{time_}</td></tr>
   </table>
   <p>If you need to reschedule, please call us directly.</p>
-  <p>See you soon!<br><strong>Mainak Chiropractic</strong></p>
+  <p>See you soon!<br><strong>{clinic}</strong></p>
 </div>"""
 
 
@@ -96,14 +97,15 @@ def _clinic_missed_html(d: dict) -> str:
 def _patient_followup_html(d: dict) -> str:
     import html as h
     name = h.escape(d.get("patient_name") or "")
+    clinic = settings.CLINIC_NAME
     return f"""
 <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
   <h2 style="color:#0D1B2A;">We missed you!</h2>
   <p>Hi {name},</p>
-  <p>Thank you for reaching out to <strong>Mainak Chiropractic</strong>.</p>
+  <p>Thank you for reaching out to <strong>{clinic}</strong>.</p>
   <p>It looks like we weren't able to schedule your appointment during the call.
      We'd love to help — please call us back or book online at your convenience.</p>
-  <p>— Mainak Chiropractic</p>
+  <p>— {clinic}</p>
 </div>"""
 
 
@@ -120,10 +122,11 @@ async def _send_email(to: str, subject: str, html: str, tag: str) -> bool:
         import resend
         resend.api_key = settings.RESEND_API_KEY
         from_addr = getattr(settings, "EMAIL_FROM", "onboarding@resend.dev")
+        clinic    = settings.CLINIC_NAME
         await asyncio.to_thread(
             resend.Emails.send,
             {
-                "from":    f"Mainak Chiropractic <{from_addr}>",
+                "from":    f"{clinic} <{from_addr}>",
                 "to":      [to],
                 "subject": subject,
                 "html":    html,
@@ -189,55 +192,47 @@ async def _whatsapp_clinic_alert(d: dict, booked: bool) -> bool:
 
 async def _persist_call_log(d: dict) -> str | None:
     """Upsert on retell_call_id — handles Retell webhook retries (no duplicates)."""
-    from core.database import get_db_context
+    from core.database import get_db_context, CallLog, select
     try:
         async with get_db_context() as db:
-            from sqlalchemy import text
-            result = await db.execute(
-                text("""
-                    INSERT INTO call_logs (
-                        retell_call_id, transcript, summary, recording_url,
-                        patient_phone, patient_name, patient_email,
-                        appointment_booked, appointment_date, appointment_time,
-                        duration_sec, disconnect_reason, event_type
-                    ) VALUES (
-                        :call_id, :transcript, :summary, :recording_url,
-                        :patient_phone, :patient_name, :patient_email,
-                        :appointment_booked, :appointment_date, :appointment_time,
-                        :duration_sec, :disconnect_reason, :event_type
-                    )
-                    ON CONFLICT (retell_call_id) DO UPDATE SET
-                        transcript         = EXCLUDED.transcript,
-                        summary            = EXCLUDED.summary,
-                        recording_url      = EXCLUDED.recording_url,
-                        appointment_booked = EXCLUDED.appointment_booked,
-                        appointment_date   = EXCLUDED.appointment_date,
-                        appointment_time   = EXCLUDED.appointment_time,
-                        duration_sec       = EXCLUDED.duration_sec,
-                        disconnect_reason  = EXCLUDED.disconnect_reason
-                    RETURNING id
-                """),
-                {
-                    "call_id":            d["call_id"],
-                    "transcript":         d["transcript"],
-                    "summary":            d["summary"],
-                    "recording_url":      d["recording_url"],
-                    "patient_phone":      d["patient_phone"],
-                    "patient_name":       d["patient_name"],
-                    "patient_email":      d["patient_email"],
-                    "appointment_booked": d["appointment_booked"],
-                    "appointment_date":   d["appointment_date"],
-                    "appointment_time":   d["appointment_time"],
-                    "duration_sec":       d["duration_sec"],
-                    "disconnect_reason":  d["disconnect_reason"],
-                    "event_type":         d["event_type"],
-                },
-            )
+            # Check for existing log
+            res = await db.execute(select(CallLog).where(CallLog.retell_call_id == d["call_id"]))
+            row = res.scalar_one_or_none()
+
+            if row:
+                # Update (Retell analysis takes time, but started/ended events hit first)
+                row.transcript         = d.get("transcript")
+                row.summary            = d.get("summary")
+                row.recording_url      = d.get("recording_url")
+                row.appointment_booked = d.get("appointment_booked")
+                row.appointment_date   = d.get("appointment_date")
+                row.appointment_time   = d.get("appointment_time")
+                row.duration_sec       = d.get("duration_sec")
+                row.disconnect_reason  = d.get("disconnect_reason")
+            else:
+                # Insert
+                row = CallLog(
+                    retell_call_id     = d["call_id"],
+                    transcript         = d.get("transcript"),
+                    summary            = d.get("summary"),
+                    recording_url      = d.get("recording_url"),
+                    patient_phone      = d.get("patient_phone"),
+                    patient_name       = d.get("patient_name"),
+                    patient_email      = d.get("patient_email"),
+                    appointment_booked = d.get("appointment_booked"),
+                    appointment_date   = d.get("appointment_date"),
+                    appointment_time   = d.get("appointment_time"),
+                    duration_sec       = d.get("duration_sec"),
+                    disconnect_reason  = d.get("disconnect_reason"),
+                    event_type         = d.get("event_type", "call_analyzed"),
+                )
+                db.add(row)
+
             await db.commit()
-            row = result.fetchone()
-            call_log_id = str(row[0]) if row else None
-            logger.info("retell_call_log_persisted",
-                        call_id=d["call_id"], call_log_id=call_log_id)
+            await db.refresh(row)
+            
+            call_log_id = str(row.id)
+            logger.info("retell_call_log_persisted", call_id=d["call_id"], call_log_id=call_log_id)
             return call_log_id
     except Exception as exc:
         logger.error("retell_call_log_failed", call_id=d["call_id"], error=str(exc))
@@ -245,29 +240,19 @@ async def _persist_call_log(d: dict) -> str | None:
 
 
 async def _persist_appointment(d: dict, call_log_id: str | None) -> bool:
-    from core.database import get_db_context
+    from core.database import get_db_context, Appointment
     try:
         async with get_db_context() as db:
-            from sqlalchemy import text
-            await db.execute(
-                text("""
-                    INSERT INTO appointments (
-                        call_log_id, patient_name, patient_phone, patient_email,
-                        appointment_date, appointment_time, status
-                    ) VALUES (
-                        :call_log_id, :patient_name, :patient_phone, :patient_email,
-                        :appointment_date, :appointment_time, 'scheduled'
-                    )
-                """),
-                {
-                    "call_log_id":      call_log_id,
-                    "patient_name":     d["patient_name"],
-                    "patient_phone":    d["patient_phone"],
-                    "patient_email":    d["patient_email"],
-                    "appointment_date": d["appointment_date"],
-                    "appointment_time": d["appointment_time"],
-                },
+            new_appt = Appointment(
+                call_log_id      = call_log_id,
+                patient_name     = d.get("patient_name"),
+                patient_phone    = d.get("patient_phone"),
+                patient_email    = d.get("patient_email"),
+                appointment_date = d.get("appointment_date"),
+                appointment_time = d.get("appointment_time"),
+                status           = "scheduled",
             )
+            db.add(new_appt)
             await db.commit()
             logger.info("retell_appointment_persisted", call_id=d["call_id"])
             return True
@@ -277,28 +262,18 @@ async def _persist_appointment(d: dict, call_log_id: str | None) -> bool:
 
 
 async def _persist_missed_call(d: dict, call_log_id: str | None) -> bool:
-    from core.database import get_db_context
+    from core.database import get_db_context, MissedCall
     try:
         async with get_db_context() as db:
-            from sqlalchemy import text
-            await db.execute(
-                text("""
-                    INSERT INTO missed_calls (
-                        call_log_id, patient_name, patient_phone,
-                        patient_email, summary, follow_up_sent
-                    ) VALUES (
-                        :call_log_id, :patient_name, :patient_phone,
-                        :patient_email, :summary, false
-                    )
-                """),
-                {
-                    "call_log_id":   call_log_id,
-                    "patient_name":  d["patient_name"],
-                    "patient_phone": d["patient_phone"],
-                    "patient_email": d["patient_email"],
-                    "summary":       d["summary"],
-                },
+            missed = MissedCall(
+                call_log_id    = call_log_id,
+                patient_name   = d.get("patient_name"),
+                patient_phone  = d.get("patient_phone"),
+                patient_email  = d.get("patient_email"),
+                summary        = d.get("summary"),
+                follow_up_sent = False,
             )
+            db.add(missed)
             await db.commit()
             logger.info("retell_missed_call_persisted", call_id=d["call_id"])
             return True
@@ -349,7 +324,7 @@ async def run_retell_post_call_pipeline(d: dict) -> dict:
         ep, ec, wa = await asyncio.gather(
             _send_email(
                 to=d["patient_email"],
-                subject="Your Appointment is Confirmed — Mainak Chiropractic",
+                subject=f"Your Appointment is Confirmed — {settings.CLINIC_NAME}",
                 html=_patient_confirmation_html(d),
                 tag="patient_confirmation",
             ),
@@ -374,7 +349,7 @@ async def run_retell_post_call_pipeline(d: dict) -> dict:
         patient_email_task = (
             _send_email(
                 to=d["patient_email"],
-                subject="We missed you — Mainak Chiropractic",
+                subject=f"We missed you — {settings.CLINIC_NAME}",
                 html=_patient_followup_html(d),
                 tag="patient_followup",
             )

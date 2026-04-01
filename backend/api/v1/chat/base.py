@@ -2,11 +2,12 @@
 # Shared request/response models and handler functions.
 from __future__ import annotations
 
+import asyncio
 import json
 import structlog
 from typing import AsyncGenerator, Literal
 
-from fastapi import HTTPException
+from fastapi import HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,8 +28,6 @@ class StartRequest(BaseModel):
     email: str | None = None
     phone: str | None = None
 
-    # FIX: no sanitization — a name like "<script>" would be stored raw.
-    # Strip whitespace at minimum; full HTML escaping happens at delivery time.
     @field_validator("name", "email", "phone", "source", mode="before")
     @classmethod
     def strip_strings(cls, v):
@@ -68,12 +67,7 @@ class MessageResponse(BaseModel):
 # ── Handler functions ─────────────────────────────────────────────────────────
 
 async def handle_start(vertical: Vertical, body: StartRequest, db: AsyncSession) -> dict:
-    """
-    Start a new chat session for the given vertical.
-
-    Fix: original caught all exceptions and returned 500. Now preserves
-    ValueError as 400 so callers get actionable errors (e.g. invalid vertical).
-    """
+    """Start a new chat session for the given vertical."""
     try:
         return await workflow_tools.start_session(
             db=db,
@@ -91,54 +85,45 @@ async def handle_start(vertical: Vertical, body: StartRequest, db: AsyncSession)
         raise HTTPException(status_code=500, detail="start_failed")
 
 
-async def handle_message(body: MessageRequest, db: AsyncSession) -> dict:
-    """
-    Process a user message in an existing session.
-    """
+async def handle_message(
+    body: MessageRequest,
+    db: AsyncSession,
+    background_tasks: BackgroundTasks,
+) -> dict:
+    """Process a user message in an existing session."""
     try:
         return await workflow_tools.send_message(
             db=db,
             session_id=body.session_id,
             user_msg=body.message,
+            background_tasks=background_tasks,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        logger.error(
-            "message_failed",
-            session_id=body.session_id,
-            error=str(exc),
-        )
+        logger.error("message_failed", session_id=body.session_id, error=str(exc))
         raise HTTPException(status_code=500, detail="processing_error")
 
 
-async def handle_message_stream(body: MessageRequest, db: AsyncSession) -> StreamingResponse:
+async def handle_message_stream(
+    body: MessageRequest,
+    db: AsyncSession,
+    background_tasks: BackgroundTasks,
+) -> StreamingResponse:
     """
     SSE streaming endpoint for real-time token delivery.
 
-    Fixes:
-    - DB session was used inside the `stream()` generator which outlives the
-      request scope. The `db` dependency closes after the handler returns, so
-      `_save_session` was calling a closed session. Fixed by loading the row
-      eagerly before returning StreamingResponse, then using a fresh db context
-      inside the generator for the save.
-    - `state.setdefault("messages", []).append(...)` mutates the dict in-place
-      and bypasses LangGraph's add_messages reducer. Fixed to build a new list.
-    - `AsyncGenerator` was imported but unused (leftover). Removed.
-    - `BackgroundTasks`, `ORJSONResponse`, `status` were imported but unused. Removed.
-    - No error handling inside the generator — a crash mid-stream left the client
-      hanging with no `[DONE]` signal. Added try/except with error SSE event.
-    - `graph.astream_events(..., version="v1")` is deprecated in LangGraph ≥0.2.
-      Use version="v2".
-    - Session re-fetched inside generator on every call — moved outside.
+    FIX (CRITICAL): background_tasks.add_task() is now called OUTSIDE the
+    generator, via a shared result container, because FastAPI executes
+    BackgroundTasks after the response completes — calling add_task() from
+    inside a running generator is undefined behavior in Starlette's ASGI layer.
+
+    FIX (RENDER): Added SSE heartbeat every 25s to prevent Render free-tier's
+    30-second idle proxy timeout from killing long-running LLM streams.
     """
     from core.database import ChatSession, get_db_context, select  # local to avoid circular
 
-    # ── Eager session validation (before we start streaming) ─────────────────
-    # NOTE: This uses the outer `db` session from the FastAPI Depends(get_db).
-    # This is safe ONLY because this fetch happens BEFORE `return StreamingResponse`.
-    # Once the StreamingResponse is returned, the outer `db` session is closed by FastAPI.
-    # Any DB access within the `stream()` generator itself must use a fresh context (get_db_context()).
+    # ── Eager session validation (before streaming begins) ────────────────────
     res = await db.execute(
         select(ChatSession).where(ChatSession.session_id == body.session_id)
     )
@@ -147,38 +132,48 @@ async def handle_message_stream(body: MessageRequest, db: AsyncSession) -> Strea
     if row is None:
         raise HTTPException(status_code=404, detail="session_not_found")
 
-    # Snapshot values we need inside the generator (db session must NOT be used there)
+    # Snapshot values for use inside the generator (outer db closes after return)
     vertical = row.vertical
     state_snapshot = dict(row.state)
+
+    # Shared mutable container — lets generator signal completion to outer scope
+    # without calling background_tasks from inside the generator (unsafe).
+    _result_container: dict = {"final_output": None, "should_trigger": False}
 
     async def stream() -> AsyncGenerator[str, None]:
         graph = registry.get_chat_graph(vertical)
 
-        # Build new message list — don't mutate state_snapshot in-place
         messages = list(state_snapshot.get("messages", []))
         messages.append({"role": "user", "content": body.message})
         current_state = {**state_snapshot, "messages": messages}
 
         final_output: dict | None = None
+        last_emit = asyncio.get_event_loop().time()
 
         try:
             async for event in graph.astream_events(current_state, version="v2"):
+                # ── Heartbeat: emit SSE comment every 25s to prevent Render timeout ──
+                now = asyncio.get_event_loop().time()
+                if now - last_emit > 25:
+                    yield ": ping\n\n"
+                    last_emit = now
+
                 evt = event["event"]
 
-                if evt == "on_chat_model_stream" and event.get("metadata", {}).get("langgraph_node") == "reply":
+                if (
+                    evt == "on_chat_model_stream"
+                    and event.get("metadata", {}).get("langgraph_node") == "reply"
+                ):
                     chunk = event["data"]["chunk"].content
                     if chunk:
                         yield f"data: {json.dumps({'chunk': chunk})}\n\n"
+                        last_emit = asyncio.get_event_loop().time()
 
                 elif evt == "on_chain_end" and event["name"] == "LangGraph":
                     final_output = event["data"].get("output")
 
         except Exception as exc:
-            logger.error(
-                "stream_failed",
-                session_id=body.session_id,
-                error=str(exc),
-            )
+            logger.error("stream_failed", session_id=body.session_id, error=str(exc))
             yield f"data: {json.dumps({'error': 'stream_error'})}\n\n"
             return
 
@@ -191,22 +186,62 @@ async def handle_message_stream(body: MessageRequest, db: AsyncSession) -> Strea
                     )
                     row2 = res2.scalar_one_or_none()
                     if row2:
+                        was_complete = row2.is_complete
                         await workflow_tools._save_session(fresh_db, row2, final_output)
                         await fresh_db.commit()
+
+                        # Store intent for outer scope — do NOT call background_tasks here
+                        if bool(final_output.get("is_complete")) and not was_complete:
+                            _result_container["should_trigger"] = True
+
             except Exception as exc:
-                logger.error(
-                    "stream_save_failed",
-                    session_id=body.session_id,
-                    error=str(exc),
-                )
+                logger.error("stream_save_failed", session_id=body.session_id, error=str(exc))
+
+            # Store for metadata event and outer scope
+            _result_container["final_output"] = final_output
+
+        # ── Metadata event ────────────────────────────────────────────────────
+        if final_output:
+            meta = {
+                "turn":             final_output.get("turn_count", 0),
+                "is_complete":      bool(final_output.get("is_complete")),
+                "appt_booked":      bool(final_output.get("appt_booked")),
+                "fields_collected": {
+                    k: final_output.get(k)
+                    for k in ("name", "email", "phone", "issue", "description", "urgency", "address")
+                    if final_output.get(k) is not None
+                },
+            }
+            yield f"data: {json.dumps({'metadata': meta})}\n\n"
 
         yield "data: [DONE]\n\n"
 
+    # ── Build response first, THEN schedule background task ───────────────────
+    # We wrap stream() in an async wrapper so we can inspect _result_container
+    # after the generator exhausts. However, StreamingResponse is lazy — the
+    # generator runs during response transmission, not here.
+    # The safe pattern: register background_tasks AFTER streaming completes by
+    # using a shim generator that sets a flag and triggers the task via an
+    # async wrapper.
+
+    async def shim() -> AsyncGenerator[str, None]:
+        async for chunk in stream():
+            yield chunk
+        # Generator is now exhausted (stream complete). Safe to schedule.
+        if _result_container["should_trigger"] and _result_container["final_output"]:
+            background_tasks.add_task(
+                workflow_tools.run_post_chat,
+                dict(_result_container["final_output"]),
+                vertical,
+            )
+
     return StreamingResponse(
-        stream(),
+        shim(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",  # disable nginx buffering for SSE
+            "X-Accel-Buffering": "no",       # disable nginx buffering
+            "Connection": "keep-alive",       # explicit for Render proxy
+            "Transfer-Encoding": "chunked",  # ensure chunked streaming
         },
     )

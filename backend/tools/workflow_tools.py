@@ -1,15 +1,16 @@
-# tools/workflow_tools.py
 from __future__ import annotations
 
 import asyncio
 import uuid
 import structlog
 from datetime import datetime, timezone
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
+from fastapi import BackgroundTasks
 from core.database import ChatSession, get_db_context
 from workflows.registry import registry
 
@@ -88,7 +89,7 @@ async def start_session(
     return {"session_id": session_id, "vertical": vertical, "turn": 0}
 
 
-async def send_message(db: AsyncSession, session_id: str, user_msg: str) -> dict:
+async def send_message(db: AsyncSession, session_id: str, user_msg: str, background_tasks: BackgroundTasks) -> dict:
     """
     Append user message, invoke chat graph, persist result.
 
@@ -127,13 +128,11 @@ async def send_message(db: AsyncSession, session_id: str, user_msg: str) -> dict
     await db.commit()
 
     if result.get("is_complete") and not was_complete:
-        try:
-            asyncio.create_task(
-                run_post_chat(dict(result), row.vertical),
-                name=f"post_chat_{session_id[:12]}",
-            )
-        except Exception as exc:
-            logger.error("post_chat_schedule_failed", session_id=session_id, error=str(exc))
+        background_tasks.add_task(
+            run_post_chat, 
+            dict(result), 
+            row.vertical
+        )
 
     last_ai = next(
         (m["content"] for m in reversed(result.get("messages", []))

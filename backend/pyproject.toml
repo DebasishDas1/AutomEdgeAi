@@ -7,8 +7,13 @@ requires-python = ">=3.12"
 
 dependencies = [
     # Core framework
-    "fastapi>=0.115.0",
+    # Backend production runtime
+    "gunicorn>=23.0.0",
     "uvicorn[standard]>=0.30.0",
+    "firebase-admin>=6.6.0",
+    
+    # Core framework
+    "fastapi>=0.115.0",
     # Database & async
     "sqlalchemy[asyncio]>=2.0.48",
     "asyncpg>=0.31.0",
@@ -29,7 +34,7 @@ dependencies = [
     "langgraph>=1.0.10",
     # Light external integrations
     "resend>=2.23.0",           # Email
-    "twilio>=9.10.2",           # SMS / WhatsApp  # CRM
+    "twilio>=9.10.2",           # SMS / WhatsApp
     "hubspot-api-client>=12.0.0",
     "phonenumbers>=9.0.26",
     "pydantic-extra-types>=2.11.1",

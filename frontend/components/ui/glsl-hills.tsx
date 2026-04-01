@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-// @ts-ignore
 import * as THREE from "three";
 
 interface GLSLHillsProps {
@@ -221,7 +220,7 @@ const GLSLHills = ({
       10000,
     );
 
-    const timer = new (THREE as any).Timer();
+    const clock = new THREE.Clock();
     const plane = new Plane();
 
     // 🌗 detect theme
@@ -241,8 +240,7 @@ const GLSLHills = ({
     };
 
     const render = () => {
-      timer.update();
-      const delta = timer.getDelta();
+      const delta = clock.getDelta();
       plane.render(delta);
       renderer.render(scene, camera);
     };

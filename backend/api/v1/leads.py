@@ -1,5 +1,5 @@
 # api/v1/leads.py
-import logging
+import structlog
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -9,7 +9,7 @@ from core.database import get_db
 from models.lead import LeadCreate, LeadUpdate, LeadResponse, LeadListResponse
 from tools import lead_tools
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 router = APIRouter()
 
 

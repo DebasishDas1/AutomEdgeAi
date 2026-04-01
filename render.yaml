@@ -11,13 +11,14 @@ services:
     branch: main
     rootDir: backend
 
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install uv && uv sync --frozen --no-dev
 
     startCommand: >
-      uvicorn main:app
-      --host 0.0.0.0
-      --port $PORT
-      --timeout-keep-alive 120
+      gunicorn main:app
+      -k uvicorn.workers.UvicornWorker
+      --bind 0.0.0.0:$PORT
+      --timeout 120
+      --keep-alive 5
 
     healthCheckPath: /health
     autoDeploy: true
@@ -78,12 +79,31 @@ services:
       - key: TWILIO_FROM_NUMBER
         sync: false
 
+      - key: TWILIO_WA_FROM
+        value: "whatsapp:+14155238886"
+
+      # Retell
+      - key: RETELL_API_KEY
+        sync: false
+
+      - key: RETELL_AGENT_ID
+        sync: false
+
+      - key: RETELL_WEBHOOK_SECRET
+        sync: false
+
       # Business
+      - key: CLINIC_NAME
+        value: "Lone Star Cooling & Heating"
+
       - key: BUSINESS_PHONE
-        value: "+1-555-000-0000"
+        value: "+1-512-555-0199"
 
       - key: TEAM_EMAIL
-        value: "team@automedge.com"
+        value: "bookings@automedge.com"
+
+      - key: TEAM_WHATSAPP_NUMBER
+        sync: false
 
       # CORS
       - key: ALLOWED_ORIGINS
