@@ -47,10 +47,6 @@ async def start_session(
 ) -> dict:
     """
     Create a new chat session, pre-seeding contact fields from the lead form.
-
-    BUG FIX: vertical was not validated. An invalid vertical created a DB row
-    then crashed at registry.get_chat_graph() on the first message, leaving
-    an orphaned unrecoverable session. Validate before writing to DB.
     """
     _SUPPORTED = {"hvac", "plumbing", "roofing", "pest_control"}
     if vertical not in _SUPPORTED:
@@ -84,8 +80,7 @@ async def start_session(
     )
     db.add(row)
     await db.commit()
-    logger.info("session_started", session_id=session_id, vertical=vertical,
-                has_name=bool(name), has_email=bool(email), has_phone=bool(phone))
+    logger.info("session_started", session_id=session_id, vertical=vertical)
     return {"session_id": session_id, "vertical": vertical, "turn": 0}
 
 
@@ -93,17 +88,11 @@ async def send_message(db: AsyncSession, session_id: str, user_msg: str, backgro
     """
     Append user message, invoke chat graph, persist result.
 
-    BUG FIX: state["messages"] was mutated before graph.ainvoke(). If ainvoke()
-    raised, the DB row was left with the user message appended but no assistant
-    reply -- permanently broken session. Now graph_input is a clean local copy;
-    row.state is only updated after a successful invoke via _save_session.
-
-    BUG FIX: post-chat task was created without a name, making it invisible in
-    asyncio task introspection. Named for debuggability.
+    FIX (CRITICAL): Re-fetch with lock ONLY after the slow LLM call returns.
+    Held locks during graph.ainvoke() cause deadlocks and worker pool exhaustion.
     """
-    stmt = select(ChatSession).where(
-        ChatSession.session_id == session_id
-    ).with_for_update()
+    # 1. READ ONLY - No lock held during slow AI call
+    stmt = select(ChatSession).where(ChatSession.session_id == session_id)
     res = await db.execute(stmt)
     row = res.scalar_one_or_none()
 
@@ -111,6 +100,9 @@ async def send_message(db: AsyncSession, session_id: str, user_msg: str, backgro
         raise ValueError("session_not_found")
 
     state = dict(row.state)
+    # Expunge to ensure the next fetch with_for_update hits the DB, not the cache
+    db.expunge(row)
+
     graph_input = {
         **state,
         "messages": list(state.get("messages", [])) + [{
@@ -123,15 +115,26 @@ async def send_message(db: AsyncSession, session_id: str, user_msg: str, backgro
     graph = registry.get_chat_graph(row.vertical)
     result = await graph.ainvoke(graph_input)
 
-    was_complete = bool(state.get("is_complete"))
-    await _save_session(db, row, result)
+    # 2. WRITE LOCK - Only for the millisecond it takes to update the row
+    stmt_lock = select(ChatSession).where(
+        ChatSession.session_id == session_id
+    ).with_for_update()
+    res_lock = await db.execute(stmt_lock)
+    row_locked = res_lock.scalar_one_or_none()
+    
+    if not row_locked:
+        # Extreme edge case: session deleted during AI call
+        raise ValueError("session_lost_during_ai_call")
+
+    was_complete = bool(row_locked.is_complete)
+    await _save_session(db, row_locked, result)
     await db.commit()
 
     if result.get("is_complete") and not was_complete:
         background_tasks.add_task(
             run_post_chat, 
             dict(result), 
-            row.vertical
+            row_locked.vertical
         )
 
     last_ai = next(
@@ -147,8 +150,7 @@ async def send_message(db: AsyncSession, session_id: str, user_msg: str, backgro
         "appt_booked":      bool(result.get("appt_booked")),
         "fields_collected": {
             k: result.get(k)
-            for k in ("name", "email", "phone", "issue",
-                      "description", "urgency", "address")
+            for k in ("name", "email", "phone", "issue", "description", "urgency", "address")
             if result.get(k) is not None
         },
     }
