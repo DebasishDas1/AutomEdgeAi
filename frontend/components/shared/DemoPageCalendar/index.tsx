@@ -42,6 +42,7 @@ export const DemoPageCalendar = ({
     name: "",
     email: "",
     website: "",
+    teamSize: "1-5",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -100,6 +101,7 @@ export const DemoPageCalendar = ({
         business:      formData.website || "No Business Listed",
         vertical:      type,
         scheduled_at:  selectedSlot ? selectedSlot.toISOString() : new Date().toISOString(),
+        team_size:     formData.teamSize,
       });
       setBookingStep("success");
     } catch (err) {

@@ -9,7 +9,8 @@ export interface BookingRequest {
   email:        string;
   business:     string;  // Maps to "Company Website" or similar
   vertical:     string;  // "hvac", etc.
-  scheduled_at: string;  // ISO string
+  message?:      string;  // Notes/questions
+  scheduled_at: string | null;  // ISO string
   team_size?:   string;
 }
 

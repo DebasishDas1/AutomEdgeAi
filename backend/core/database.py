@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean, Column, DateTime, ForeignKey,
-    Integer, String, Text, select,
+    Integer, String, Text, select, text
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.ext.asyncio import (
@@ -87,13 +87,15 @@ class Booking(Base):
     """Demo / onboarding booking from the marketing site."""
     __tablename__ = "bookings"
 
-    id         = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name       = Column(String, nullable=False)
-    email      = Column(String, nullable=False)
-    business   = Column(String, nullable=False)
-    vertical   = Column(String, nullable=False)
-    team_size  = Column(String, nullable=True)
-    created_at = Column(DateTime(timezone=True), default=_now)
+    id           = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name         = Column(String, nullable=False)
+    email        = Column(String, nullable=False)
+    business     = Column(String, nullable=False)
+    vertical     = Column(String, nullable=False)
+    team_size    = Column(String, nullable=True)
+    message      = Column(Text,   nullable=True)
+    scheduled_at = Column(DateTime(timezone=True), nullable=True)
+    created_at   = Column(DateTime(timezone=True), default=_now)
 
 
 class WorkflowEvent(Base):
@@ -175,7 +177,43 @@ async def get_db_context():
 async def init_db() -> None:
     """Create all tables that don't exist. Safe to call on every startup."""
     async with engine.begin() as conn:
+        # Ensure UUID extension is available
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pgcrypto"))
+        
+        # Run standard metadata sync
         await conn.run_sync(Base.metadata.create_all)
+        
+        # Explicit backup creation for critical bookings table if SQLAlchemy missed it
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS bookings (
+                id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name         VARCHAR NOT NULL,
+                email        VARCHAR NOT NULL,
+                business     VARCHAR NOT NULL,
+                vertical     VARCHAR NOT NULL,
+                team_size    VARCHAR,
+                message      TEXT,
+                scheduled_at TIMESTAMPTZ,
+                created_at   TIMESTAMPTZ DEFAULT now()
+            )
+        """))
+        
+        # Ensure columns exist if table was created in a previous run without them
+        await conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS message TEXT"))
+        await conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ"))
+        
+        # Also ensure workflow_events table exists
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS workflow_events (
+                id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                lead_id       UUID NOT NULL REFERENCES leads(id),
+                step          INTEGER NOT NULL,
+                label         VARCHAR NOT NULL,
+                status        VARCHAR NOT NULL DEFAULT 'active',
+                timestamp_str VARCHAR,
+                created_at    TIMESTAMPTZ DEFAULT now()
+            )
+        """))
 
 
 __all__ = [

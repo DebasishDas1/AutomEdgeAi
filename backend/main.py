@@ -149,6 +149,9 @@ async def request_isolation_middleware(request: Request, call_next):
         response.headers["X-Request-ID"] = request_id
         return response
 
+    except HTTPException as exc:
+        # Re-raise so FastAPI's exception handlers (404, 401) can work.
+        raise exc
     except Exception as exc:
         duration_ms = int((time.perf_counter() - start) * 1000)
         logger.error("request_crashed", error=str(exc), latency_ms=duration_ms)

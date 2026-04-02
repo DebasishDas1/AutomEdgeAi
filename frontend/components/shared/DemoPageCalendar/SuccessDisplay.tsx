@@ -6,7 +6,7 @@ import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 
 type SuccessDisplayProps = {
-  formData: { name: string; email: string };
+  formData: { name: string; email: string; website: string; teamSize: string };
   selectedSlot: Date | null;
   onReschedule: () => void;
 };

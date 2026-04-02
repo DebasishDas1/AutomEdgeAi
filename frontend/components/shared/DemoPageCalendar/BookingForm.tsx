@@ -5,7 +5,7 @@ import { format } from "date-fns";
 
 type BookingFormProps = {
   selectedSlot: Date | null;
-  formData: { name: string; email: string; website: string };
+  formData: { name: string; email: string; website: string; teamSize: string };
   setFormData: (data: any) => void;
   onConfirm: (e: React.FormEvent) => void;
   onBack: () => void;
@@ -78,6 +78,23 @@ export const BookingForm = ({
             }
             className="w-full bg-background/60 border-2 border-border/50 rounded-2xl p-5 focus:border-accent focus:ring-4 focus:ring-accent/10 outline-none font-bold text-lg placeholder:text-muted-foreground/30 transition-all shadow-inner"
           />
+        </div>
+
+        <div className="space-y-3">
+          <label className="text-sm font-black text-foreground/70 ml-2 tracking-wide uppercase">
+            Team Size
+          </label>
+          <select
+            value={formData.teamSize}
+            onChange={(e) =>
+              setFormData({ ...formData, teamSize: e.target.value })
+            }
+            className="w-full bg-background/60 border-2 border-border/50 rounded-2xl p-5 focus:border-accent focus:ring-4 focus:ring-accent/10 outline-none font-bold text-lg appearance-none cursor-pointer transition-all shadow-inner"
+          >
+            <option value="1-5">1-5 Employees</option>
+            <option value="6-20">6-20 Employees</option>
+            <option value="20+">20+ Employees</option>
+          </select>
         </div>
 
         <div className="pt-6 flex flex-col sm:flex-row gap-5">

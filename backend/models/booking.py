@@ -6,21 +6,25 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class BookingCreate(BaseModel):
-    name:      str  = Field(..., min_length=1, max_length=100)
-    email:     EmailStr
-    business:  str  = Field(..., min_length=1)   # company/business name
-    vertical:  str                               # which vertical they are interested in
-    team_size: str | None = None                 # "1-5", "6-20", "20+"
+    name:         str  = Field(..., min_length=1, max_length=100)
+    email:        EmailStr
+    business:     str  = Field(..., min_length=1)   # company/business name
+    vertical:       str                               # which vertical they are interested in
+    team_size:      str | None = None                 # "1-5", "6-20", "20+"
+    message:        str | None = None                 # Notes/questions from the lead
+    scheduled_at:   datetime | None = None
 
 
 class BookingResponse(BaseModel):
-    id:         uuid.UUID
-    name:       str
-    email:      EmailStr
-    business:   str
-    vertical:   str
-    team_size:  str | None
-    created_at: datetime
+    id:           uuid.UUID
+    name:         str
+    email:        EmailStr
+    business:     str
+    vertical:     str
+    team_size:    str | None
+    message:      str | None
+    scheduled_at: datetime | None
+    created_at:   datetime
 
     class Config:
         from_attributes = True
