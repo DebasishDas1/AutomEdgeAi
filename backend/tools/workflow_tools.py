@@ -84,7 +84,13 @@ async def start_session(
     return {"session_id": session_id, "vertical": vertical, "turn": 0}
 
 
-async def send_message(db: AsyncSession, session_id: str, user_msg: str, background_tasks: BackgroundTasks) -> dict:
+async def send_message(
+    db: AsyncSession, 
+    session_id: str, 
+    user_msg: str, 
+    background_tasks: BackgroundTasks,
+    app_state: Any = None
+) -> dict:
     """
     Append user message, invoke chat graph, persist result.
 
@@ -134,7 +140,8 @@ async def send_message(db: AsyncSession, session_id: str, user_msg: str, backgro
         background_tasks.add_task(
             run_post_chat, 
             dict(result), 
-            row_locked.vertical
+            row_locked.vertical,
+            app_state
         )
 
     last_ai = next(
@@ -156,7 +163,7 @@ async def send_message(db: AsyncSession, session_id: str, user_msg: str, backgro
     }
 
 
-async def run_post_chat(state: dict, vertical: str) -> None:
+async def run_post_chat(state: dict, vertical: str, app_state: Any = None) -> None:
     """Run score + deliver post-chat graph. Errors are fully caught."""
     graph = registry.get_post_graph(vertical)
     if graph is None:
@@ -174,6 +181,12 @@ async def run_post_chat(state: dict, vertical: str) -> None:
             if row is None:
                 logger.warning("post_chat_session_not_found", session_id=session_id)
                 return
+            
+            # Pass app_state in the state strictly for the duration of this run.
+            # It will be filtered out during DB persistence by _save_session (startswith "_").
+            if app_state:
+                state["_app_state"] = app_state
+            
             result = await graph.ainvoke(state)
             await _save_session(db, row, result)
             await db.commit()

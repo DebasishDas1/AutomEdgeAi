@@ -1,10 +1,5 @@
-# tools/retell_tools.py
-# Retell AI post-call data extraction.
-# Mirrors the n8n "Extract Call Data" node in pure Python,
-# with the extraction bugs from the original fixed.
-from __future__ import annotations
-
 import re
+import json
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -42,8 +37,9 @@ def _extract_name(book_args: dict, transcript: str, summary: str) -> str:
         return name.strip()
 
     # "My name is John Smith" / "I'm Jane Doe"
+    # Refined regex to better capture full names (2-3 parts)
     m = re.search(
-        r"(?:my name is|i(?:'m| am))\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)",
+        r"(?:my name is|i(?:'m| am))\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})",
         transcript,
         re.IGNORECASE,
     )
@@ -52,7 +48,7 @@ def _extract_name(book_args: dict, transcript: str, summary: str) -> str:
 
     # "Patient John Smith called" / "caller Jane Doe"
     m2 = re.search(
-        r"(?:patient|caller)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)",
+        r"(?:patient|caller)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})",
         summary,
         re.IGNORECASE,
     )
@@ -89,7 +85,7 @@ def _parse_appt_datetime(book_args: dict, transcript: str):
     if not date_str:
         m = re.search(
             r"\b(January|February|March|April|May|June|July|August|"
-            r"September|October|November|December)\s+\d{1,2}",
+            r"September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?",
             transcript,
             re.IGNORECASE,
         )
@@ -134,7 +130,6 @@ def extract_call_data(payload: dict) -> dict:
     if book_call:
         raw = book_call.get("arguments", {})
         if isinstance(raw, str):
-            import json
             try:
                 book_args = json.loads(raw)
             except Exception:

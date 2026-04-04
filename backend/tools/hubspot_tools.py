@@ -21,17 +21,28 @@ logger = structlog.get_logger(__name__)
 _hs_client = None
 
 
-def _client():
+def _client(app_state=None):
+    """
+    Get HubSpot client from app_state context (best for performance) 
+    or fall back to the module-level singleton.
+    """
     global _hs_client
+    
+    if app_state and hasattr(app_state, "hubspot") and app_state.hubspot:
+        return app_state.hubspot
+        
     if _hs_client is not None:
         return _hs_client
+        
     try:
         from hubspot import HubSpot
     except ImportError:
         raise RuntimeError("Run: uv add hubspot-api-client")
+    
     token = settings.HUBSPOT_ACCESS_TOKEN
     if not token:
         raise RuntimeError("HUBSPOT_ACCESS_TOKEN env var not set")
+    
     _hs_client = HubSpot(access_token=token)
     return _hs_client
 
@@ -65,15 +76,15 @@ def _score_to_hs_stage(score: str | None) -> str:
     Check your actual IDs at: Settings → CRM → Pipelines.
     """
     stage_map = {
-        "hot":  getattr(settings, "HUBSPOT_STAGE_HOT",  "appointmentscheduled"),
-        "warm": getattr(settings, "HUBSPOT_STAGE_WARM", "qualifiedtobuy"),
-        "cold": getattr(settings, "HUBSPOT_STAGE_COLD", "presentationscheduled"),
+        "hot":  settings.HUBSPOT_STAGE_HOT,
+        "warm": settings.HUBSPOT_STAGE_WARM,
+        "cold": settings.HUBSPOT_STAGE_COLD,
     }
     return stage_map.get(score or "warm", stage_map["warm"])
 
 
 def _pipeline_id() -> str:
-    return getattr(settings, "HUBSPOT_PIPELINE_ID", "default")
+    return settings.HUBSPOT_PIPELINE_ID
 
 
 def _issue_field(state: dict) -> str:
@@ -88,14 +99,13 @@ def _issue_field(state: dict) -> str:
 
 # ── 1. Upsert contact ─────────────────────────────────────────────────────────
 
-async def upsert_contact(state: dict) -> Optional[str]:
+async def upsert_contact(state: dict, app_state=None) -> Optional[str]:
     """
     Create or update a HubSpot contact by email.
     Returns the HubSpot contact ID, or None on failure.
 
     Custom contact properties required in HubSpot (Settings → Properties → Contact):
-        automedge_vertical, automedge_issue, automedge_urgency,
-        automedge_score, automedge_summary, automedge_session_id
+        vertical, issue, urgency, score, summary, session_id
     """
     log = logger.bind(service="hubspot_upsert_contact",
                       session_id=state.get("session_id"))
@@ -112,18 +122,18 @@ async def upsert_contact(state: dict) -> Optional[str]:
         "phone":                _phone_clean(state.get("phone")) or "",
         "address":              state.get("address") or "",
         "hs_lead_status":       "NEW",
-        "automedge_vertical":   state.get("vertical", ""),
-        "automedge_issue":      _issue_field(state),
-        "automedge_urgency":    state.get("urgency") or state.get("ai_urgency") or "",
-        "automedge_score":      state.get("score") or "",
-        "automedge_summary":    state.get("ai_summary") or "",
-        "automedge_session_id": state.get("session_id") or "",
+        "vertical":   state.get("vertical", ""),
+        "issue":      _issue_field(state),
+        "urgency":    state.get("urgency") or state.get("ai_urgency") or "",
+        "score":      state.get("score") or "",
+        "summary":    state.get("ai_summary") or "",
+        "session_id": state.get("session_id") or "",
     }
     if email:
         props["email"] = email
 
     try:
-        api = _client()
+        api = _client(app_state)
 
         # Try update-by-email first to avoid duplicates
         if email:
@@ -179,7 +189,7 @@ async def upsert_contact(state: dict) -> Optional[str]:
 
 # ── 2. Create deal ────────────────────────────────────────────────────────────
 
-async def create_deal(state: dict, contact_id: str) -> Optional[str]:
+async def create_deal(state: dict, contact_id: str, app_state=None) -> Optional[str]:
     """
     Create a HubSpot deal and associate it with the contact.
     Returns the deal ID, or None on failure.
@@ -214,7 +224,7 @@ async def create_deal(state: dict, contact_id: str) -> Optional[str]:
         props["amount"] = "15000"
 
     try:
-        api = _client()
+        api = _client(app_state)
         from hubspot.crm.deals import SimplePublicObjectInputForCreate
 
         result = await asyncio.to_thread(
@@ -245,12 +255,12 @@ async def create_deal(state: dict, contact_id: str) -> Optional[str]:
 
 # ── 3. Update contact / deal ──────────────────────────────────────────────────
 
-async def update_contact(contact_id: str, updates: dict) -> bool:
+async def update_contact(contact_id: str, updates: dict, app_state=None) -> bool:
     """Update arbitrary properties on an existing HubSpot contact."""
     log = logger.bind(service="hubspot_update_contact", contact_id=contact_id)
     try:
         from hubspot.crm.contacts import SimplePublicObjectInput
-        api = _client()
+        api = _client(app_state)
         await asyncio.to_thread(
             api.crm.contacts.basic_api.update,
             contact_id=contact_id,
@@ -263,12 +273,12 @@ async def update_contact(contact_id: str, updates: dict) -> bool:
         return False
 
 
-async def update_deal(deal_id: str, updates: dict) -> bool:
+async def update_deal(deal_id: str, updates: dict, app_state=None) -> bool:
     """Update arbitrary properties on an existing HubSpot deal."""
     log = logger.bind(service="hubspot_update_deal", deal_id=deal_id)
     try:
         from hubspot.crm.deals import SimplePublicObjectInput
-        api = _client()
+        api = _client(app_state)
         await asyncio.to_thread(
             api.crm.deals.basic_api.update,
             deal_id=deal_id,
@@ -287,6 +297,7 @@ async def book_meeting(
     state: dict,
     contact_id: str,
     slot_str: str | None = None,
+    app_state=None,
 ) -> Optional[str]:
     """
     Create a HubSpot meeting engagement and link it to the contact.
@@ -321,7 +332,7 @@ async def book_meeting(
     )
 
     try:
-        api = _client()
+        api = _client(app_state)
         from hubspot.crm.objects.meetings import SimplePublicObjectInputForCreate as MeetingCreate
 
         result = await asyncio.to_thread(
@@ -380,7 +391,7 @@ def _parse_slot_to_ms(slot_str: str | None) -> int:
 
 # ── 5. Full pipeline ──────────────────────────────────────────────────────────
 
-async def sync_lead_to_hubspot(state: dict) -> dict:
+async def sync_lead_to_hubspot(state: dict, app_state=None) -> dict:
     """
     Full HubSpot sync after a session completes:
       1. Upsert contact
@@ -396,21 +407,21 @@ async def sync_lead_to_hubspot(state: dict) -> dict:
 
     results: dict = {"contact_id": None, "deal_id": None, "meeting_id": None}
 
-    contact_id = await upsert_contact(state)
+    contact_id = await upsert_contact(state, app_state=app_state)
     results["contact_id"] = contact_id
 
     if not contact_id:
         log.warning("hubspot_sync_aborted_no_contact")
         return results
 
-    deal_id = await create_deal(state, contact_id)
+    deal_id = await create_deal(state, contact_id, app_state=app_state)
     results["deal_id"] = deal_id
 
     if state.get("appt_booked") or state.get("appt_confirmed"):
         slot = state.get("appt_confirmed") or (
             state.get("appt_slots", [None])[0] if state.get("appt_slots") else None
         )
-        results["meeting_id"] = await book_meeting(state, contact_id, slot)
+        results["meeting_id"] = await book_meeting(state, contact_id, slot, app_state=app_state)
 
     log.info("hubspot_sync_complete", **results)
     return results

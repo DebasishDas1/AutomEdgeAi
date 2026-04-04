@@ -15,7 +15,6 @@ logger = structlog.get_logger(__name__)
 
 
 # ── Email HTML bodies ─────────────────────────────────────────────────────────
-# FIX: `import html as h` moved to module level — was re-imported on every call.
 
 def _patient_confirmation_html(d: dict) -> str:
     name   = h.escape(d.get("patient_name") or "")
@@ -110,23 +109,15 @@ def _patient_followup_html(d: dict) -> str:
 
 # ── Email sender ──────────────────────────────────────────────────────────────
 
-async def _send_email(to: str, subject: str, html_body: str, tag: str) -> bool:
+async def _send_email(client: any, to: str, subject: str, html_body: str, tag: str) -> bool:
+    if not client:
+        logger.warning("retell_email_skip_no_client", tag=tag)
+        return False
     if not to or "@" not in to:
         logger.warning("retell_email_skip_no_address", tag=tag)
         return False
 
-    resend_key = getattr(settings, "RESEND_API_KEY", None)
-    if not resend_key:
-        logger.warning("retell_email_skip_no_api_key", tag=tag)
-        return False
-
     try:
-        import resend
-        # FIX: resend.api_key is a module-level global. Under asyncio.gather, two
-        # concurrent _send_email coroutines can race and corrupt each other's key.
-        # Use a fresh client instance per call instead of mutating the global.
-        client = resend.Emails
-        resend.api_key = resend_key  # idempotent if same key; still best to fix upstream
         from_addr = getattr(settings, "EMAIL_FROM", "onboarding@resend.dev")
         clinic    = settings.CLINIC_NAME
         await asyncio.to_thread(
@@ -147,15 +138,14 @@ async def _send_email(to: str, subject: str, html_body: str, tag: str) -> bool:
 
 # ── WhatsApp clinic alert ─────────────────────────────────────────────────────
 
-async def _whatsapp_clinic_alert(d: dict, booked: bool) -> bool:
+async def _whatsapp_clinic_alert(client: any, d: dict, booked: bool) -> bool:
+    if not client:
+        logger.warning("retell_wa_skip_no_client")
+        return False
+
     team_phone = getattr(settings, "TEAM_WHATSAPP_NUMBER", None)
     if not team_phone:
         logger.warning("retell_wa_skip_no_team_phone")
-        return False
-
-    twilio_sid = getattr(settings, "TWILIO_ACCOUNT_SID", None)
-    if not twilio_sid:
-        logger.warning("retell_wa_skip_no_twilio")
         return False
 
     wa_from = getattr(settings, "TWILIO_WA_FROM", "whatsapp:+14155238886")
@@ -181,13 +171,6 @@ async def _whatsapp_clinic_alert(d: dict, booked: bool) -> bool:
         )
 
     try:
-        from twilio.rest import Client
-        # FIX: Twilio Client() was being instantiated on every call, which is
-        # expensive (TLS setup, credential parsing). It should be a singleton on
-        # app.state just like the Retell client. For now, constructing once per
-        # pipeline call is still an improvement over constructing inside a retry
-        # loop, but move to app.state singleton in the next refactor.
-        client = Client(twilio_sid, settings.TWILIO_AUTH_TOKEN)
         await asyncio.to_thread(
             client.messages.create,
             from_=wa_from,
@@ -304,7 +287,7 @@ async def _persist_missed_call(d: dict, call_log_id: str | None) -> bool:
 
 # ── Main pipeline ─────────────────────────────────────────────────────────────
 
-async def run_retell_post_call_pipeline(d: dict) -> dict:
+async def run_retell_post_call_pipeline(d: dict, twilio_client=None, resend_client=None) -> dict:
     """
     Full post-call delivery. Each step is isolated — failure never blocks the rest.
 
@@ -342,53 +325,48 @@ async def run_retell_post_call_pipeline(d: dict) -> dict:
 
         ep, ec, wa = await asyncio.gather(
             _send_email(
+                client=resend_client,
                 to=d["patient_email"],
                 subject=f"Your Appointment is Confirmed — {settings.CLINIC_NAME}",
                 html_body=_patient_confirmation_html(d),
                 tag="patient_confirmation",
             ),
             _send_email(
+                client=resend_client,
                 to=clinic_email,
                 subject=f"\U0001f4c5 New Booking: {d['patient_name']}",
                 html_body=_clinic_booking_html(d),
                 tag="clinic_booking",
             ),
-            _whatsapp_clinic_alert(d, booked=True),
+            _whatsapp_clinic_alert(twilio_client, d, booked=True),
             return_exceptions=True,
         )
-        results["email_patient"] = ep is True
-        results["email_clinic"]  = ec is True
-        results["wa_clinic"]     = wa is True
-
     else:
         # ── No-booking path ───────────────────────────────────────────────────
         results["db_missed"] = await _persist_missed_call(d, call_log_id)
 
-        # FIX: The original used `asyncio.sleep(0)` as a no-op placeholder when
-        # patient_email is absent. asyncio.gather unpacks it as the `ep` result,
-        # and `asyncio.sleep(0)` returns None — so `ep is True` was always False,
-        # meaning `results["email_patient"]` was always False even on success.
-        # Now we always pass a real coroutine and let _send_email's own guard
-        # handle the missing-email case, returning False cleanly.
         ec, ep, wa = await asyncio.gather(
             _send_email(
+                client=resend_client,
                 to=clinic_email,
                 subject=f"\U0001f4de Missed Booking: {d['patient_name']}",
                 html_body=_clinic_missed_html(d),
                 tag="clinic_missed",
             ),
             _send_email(
+                client=resend_client,
                 to=d.get("patient_email") or "",
                 subject=f"We missed you — {settings.CLINIC_NAME}",
                 html_body=_patient_followup_html(d),
                 tag="patient_followup",
             ),
-            _whatsapp_clinic_alert(d, booked=False),
+            _whatsapp_clinic_alert(twilio_client, d, booked=False),
             return_exceptions=True,
         )
-        results["email_clinic"]  = ec is True
-        results["email_patient"] = ep is True
-        results["wa_clinic"]     = wa is True
+
+    results["email_patient"] = ep is True
+    results["email_clinic"]  = ec is True
+    results["wa_clinic"]     = wa is True
 
     log.info("retell_pipeline_complete", **results)
     return results

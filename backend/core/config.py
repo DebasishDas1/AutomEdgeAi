@@ -71,9 +71,9 @@ class Settings(BaseSettings):
     # -------------------------
     HUBSPOT_ACCESS_TOKEN: Optional[str] = None
     HUBSPOT_PIPELINE_ID: str = "default"
-    HUBSPOT_STAGE_HOT: str = "appointmentscheduled"
-    HUBSPOT_STAGE_WARM: str = "qualifiedtobuy"
-    HUBSPOT_STAGE_COLD: str = "presentationscheduled"
+    HUBSPOT_STAGE_HOT: str = "3394548455"
+    HUBSPOT_STAGE_WARM: str = "3394548456"
+    HUBSPOT_STAGE_COLD: str = "3394548457"
 
     # -------------------------
     # CORS
@@ -136,6 +136,16 @@ class Settings(BaseSettings):
     RETELL_API_KEY: Optional[str] = None
     RETELL_AGENT_ID: Optional[str] = None
     RETELL_WEBHOOK_SECRET: Optional[str] = None
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def cast_none_strings(cls, v):
+        if isinstance(v, str):
+            v_strip = v.strip()
+            if v_strip.lower() in ("none", "null", ""):
+                return None
+            return v_strip
+        return v
 
     # -------------------------
     # Helpers (Safe JSON parsing)

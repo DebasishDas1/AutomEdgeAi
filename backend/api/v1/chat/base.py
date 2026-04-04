@@ -7,7 +7,7 @@ import json
 import structlog
 from typing import AsyncGenerator, Literal
 
-from fastapi import HTTPException, BackgroundTasks
+from fastapi import HTTPException, BackgroundTasks, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -89,6 +89,7 @@ async def handle_message(
     body: MessageRequest,
     db: AsyncSession,
     background_tasks: BackgroundTasks,
+    request: Request,
 ) -> dict:
     """Process a user message in an existing session."""
     try:
@@ -97,6 +98,7 @@ async def handle_message(
             session_id=body.session_id,
             user_msg=body.message,
             background_tasks=background_tasks,
+            app_state=request.app.state,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -109,6 +111,7 @@ async def handle_message_stream(
     body: MessageRequest,
     db: AsyncSession,
     background_tasks: BackgroundTasks,
+    request: Request,
 ) -> StreamingResponse:
     """
     SSE streaming endpoint for real-time token delivery.
@@ -233,6 +236,7 @@ async def handle_message_stream(
                 workflow_tools.run_post_chat,
                 dict(_result_container["final_output"]),
                 vertical,
+                request.app.state,
             )
 
     return StreamingResponse(

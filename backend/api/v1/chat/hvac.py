@@ -1,5 +1,5 @@
 # api/v1/chat/hvac.py
-from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends, BackgroundTasks, Request
 from fastapi.responses import StreamingResponse
 
 from api.deps import get_db
@@ -38,12 +38,13 @@ async def start(body: StartRequest, db=Depends(get_db)):
     summary="Send a message in an HVAC session",
 )
 async def message(
+    request: Request,
     background_tasks: BackgroundTasks,
     body: MessageRequest,
     db=Depends(get_db),
 ):
     """Send a user message and receive the AI reply."""
-    return await handle_message(body, db, background_tasks)
+    return await handle_message(body, db, background_tasks, request)
 
 
 @router.post(
@@ -53,8 +54,9 @@ async def message(
     include_in_schema=True,
 )
 async def message_stream(
+    request: Request,
     background_tasks: BackgroundTasks,
     body: MessageRequest,
     db=Depends(get_db),
 ):
-    return await handle_message_stream(body, db, background_tasks)
+    return await handle_message_stream(body, db, background_tasks, request)

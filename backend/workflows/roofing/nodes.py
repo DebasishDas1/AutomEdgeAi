@@ -268,30 +268,8 @@ async def node_finalize_and_deliver(state: RoofingState) -> RoofingState:
 
     # 3. Insurance reminder SMS — storm leads with insurance confirmed
     if _is_storm_lead(state) and state.get("has_insurance") and state.get("phone"):
-        try:
-            from core.config import settings
-            from twilio.rest import Client
-            import asyncio
-            client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
-            name = state.get("name") or "there"
-            phone = state["phone"]
-            if not phone.startswith("+"):
-                phone = f"+{phone}"
-            sms = (
-                f"Hi {name}! Roof inspection coming up. "
-                "Have your homeowners insurance policy number handy — "
-                "our inspector will help with the claims process."
-            )
-            await asyncio.to_thread(
-                client.messages.create,
-                from_=settings.TWILIO_FROM_NUMBER,
-                to=phone,
-                body=sms,
-            )
-            logger.info("insurance_reminder_sms_sent", session_id=state.get("session_id"))
-        except Exception as exc:
-            logger.error("insurance_reminder_sms_failed", error=str(exc),
-                         session_id=state.get("session_id"))
+        from tools.whatsapp_tools import whatsapp_tools
+        await whatsapp_tools.send_insurance_reminder(state, state.get("_app_state"))
 
     state["duration_ms"] = _elapsed(start)
     return state

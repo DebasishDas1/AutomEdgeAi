@@ -317,40 +317,29 @@ async def node_finalize_and_deliver(state: PlumbingState) -> PlumbingState:
 
 
 async def _send_emergency_sms(state: PlumbingState) -> None:
-    try:
-        from twilio.rest import Client
-        from core.config import settings
-        client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
-        await asyncio.to_thread(
-            client.messages.create,
-            from_=settings.TWILIO_FROM_NUMBER,
-            to=_normalize_phone(state.get("phone", "")),
-            body=(
-                f"Emergency plumber dispatched to {state.get('address', 'your location')}. "
-                "Keep main shutoff CLOSED. Tech calls in 15 min."
-            ),
-        )
-        logger.info("emergency_sms_sent", session_id=state.get("session_id"))
-    except Exception as exc:
-        logger.error("emergency_sms_failed", error=str(exc),
-                     session_id=state.get("session_id"))
+    from tools.whatsapp_tools import whatsapp_tools
+    await whatsapp_tools.send_emergency_alert(state, state.get("_app_state"))
 
 
 async def _send_fallback_sms(state: PlumbingState) -> None:
-    phone = state.get("phone")
-    if not phone:
-        return
+    from tools.whatsapp_tools import whatsapp_tools
+    await whatsapp_tools.send_fallback_sms(state, state.get("_app_state"))
+    return
+
     try:
-        from twilio.rest import Client
+        from tools.whatsapp_tools import WhatsAppTools
+        client = WhatsAppTools._client(state.get("_app_state"))
+        if not client:
+            logger.warning("fallback_sms_skip_no_client")
+            return
         from core.config import settings
-        client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
         await asyncio.to_thread(
             client.messages.create,
             from_=settings.TWILIO_FROM_NUMBER,
             to=_normalize_phone(phone),
             body=(
                 "Sorry, we're having trouble processing your request. "
-                f"Please call us directly at {settings.PLUMBER_PHONE_NUMBER}."
+                f"Please call us directly at {settings.BUSINESS_PHONE}."
             ),
         )
         logger.info("fallback_sms_sent", session_id=state.get("session_id"))

@@ -16,21 +16,29 @@ _HEADER = [
 ]
 
 class SheetsTools:
-    async def append_lead(self, sheet_id: str, tab_name: str, row_data: list[Any]) -> None:
+    async def append_lead(self, sheet_id: str, tab_name: str, row_data: list[Any], app_state=None) -> None:
         """Append a row to the given tab. Creates the tab + header if missing."""
         if not sheet_id:
             logger.warning("sheets_skip_no_sheet_id", tab=tab_name)
             return
         try:
             # Delegate to thread to avoid blocking the event loop on gspread's network calls
-            await asyncio.to_thread(self._append_sync, sheet_id, tab_name, row_data)
+            await asyncio.to_thread(self._append_sync, sheet_id, tab_name, row_data, app_state)
             logger.info("sheets_row_appended", tab=tab_name)
         except Exception as exc:
             logger.error("sheets_append_failed", error=str(exc), tab=tab_name)
             raise
 
-    def _append_sync(self, sheet_id: str, tab_name: str, row_data: list[Any]) -> None:
-        client = get_sheets_client()
+    def _append_sync(self, sheet_id: str, tab_name: str, row_data: list[Any], app_state=None) -> None:
+        """
+        Internal sync method for gspread calls. Performs network IO, 
+        must be called via asyncio.to_thread.
+        """
+        # Pull client from state if available (best)
+        client = getattr(app_state, "sheets", None) if app_state else None
+        if not client:
+            client = get_sheets_client()
+        
         spreadsheet = client.open_by_key(sheet_id)
 
         try:

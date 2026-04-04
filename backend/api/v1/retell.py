@@ -130,7 +130,12 @@ async def retell_post_call(
         logger.error("retell_extraction_failed", call_id=call_id, error=str(exc))
         return JSONResponse({"status": "extraction_failed", "call_id": call_id})
 
-    background_tasks.add_task(_run_pipeline, call_data)
+    background_tasks.add_task(
+        _run_pipeline,
+        call_data,
+        getattr(request.app.state, "twilio", None),
+        getattr(request.app.state, "resend", None),
+    )
 
     return JSONResponse({
         "status": "accepted",
@@ -139,10 +144,10 @@ async def retell_post_call(
     })
 
 
-async def _run_pipeline(call_data: dict) -> None:
+async def _run_pipeline(call_data: dict, twilio_client=None, resend_client=None) -> None:
     """Background task for post-call processing."""
     try:
-        results = await run_retell_post_call_pipeline(call_data)
+        results = await run_retell_post_call_pipeline(call_data, twilio_client, resend_client)
         logger.info("retell_pipeline_done", call_id=call_data["call_id"], results=results)
     except Exception as exc:
         logger.error("retell_pipeline_error", call_id=call_data.get("call_id"), error=str(exc))

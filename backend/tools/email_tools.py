@@ -14,22 +14,24 @@ _SCORE_COLORS = {"hot": "#E8593C", "warm": "#EF9F27", "cold": "#378ADD"}
 
 class EmailTools:
 
-    def _client(self):
+    def _client(self, app_state=None):
         """
-        BUG FIX: original re-imported resend and re-set resend.api_key on every
-        call. resend is a module-level singleton with a global api_key — setting
-        it repeatedly is harmless but wasteful, and importing inside the method
-        means import errors surface only at send time with no context. Kept lazy
-        import (to avoid hard dep at startup) but documented why.
+        Pull Resend client from app state (best for performance)
+        or re-initialize if running in a standalone context.
         """
+        if app_state and hasattr(app_state, "resend") and app_state.resend:
+            return app_state.resend
+
         try:
             import resend
         except ImportError:
             raise RuntimeError("Run: uv add resend")
-        resend.api_key = settings.RESEND_API_KEY
-        return resend
+        
+        if settings.RESEND_API_KEY:
+            resend.api_key = settings.RESEND_API_KEY
+        return resend.Emails
 
-    async def send_lead_notification(self, state: dict, score: str) -> None:
+    async def send_lead_notification(self, state: dict, score: str, app_state=None) -> None:
         """Send lead notification email to the business team."""
         if not settings.RESEND_API_KEY:
             logger.warning("email_skip_no_api_key")
@@ -79,9 +81,9 @@ class EmailTools:
 </div>"""
 
         try:
-            resend = self._client()
+            resend_client = self._client(app_state=app_state)
             await asyncio.to_thread(
-                resend.Emails.send,
+                resend_client.send,
                 {
                     "from": f"Automedge Leads <{settings.EMAIL_FROM}>",
                     "to": [settings.TEAM_EMAIL],

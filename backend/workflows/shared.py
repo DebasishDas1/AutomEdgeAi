@@ -162,10 +162,13 @@ def build_chat_reply_node(
                 )
             system_prompt += completion_instr
 
-        reply = await llm.ainvoke([
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=last_user),
-        ])
+        from workflows.base import build_lc_messages
+        history = build_lc_messages(state)
+
+        reply = await llm.ainvoke(
+            [SystemMessage(content=system_prompt)] + history,
+            session_id=state.get("session_id", "global")
+        )
 
         assistant_text = reply.content.strip()
         # Strip any code fences the model might emit

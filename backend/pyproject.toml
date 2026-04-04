@@ -10,7 +10,6 @@ dependencies = [
     # Backend production runtime
     "uvicorn[standard]>=0.30.0",
     "firebase-admin>=6.6.0",
-    
     # Core framework
     "fastapi>=0.115.0",
     # Database & async
@@ -39,4 +38,5 @@ dependencies = [
     "pydantic-extra-types>=2.11.1",
     "email-validator>=2.3.0",
     "retell-sdk>=0.10.0",
+    "gspread>=6.2.1",
 ]

@@ -38,7 +38,7 @@ def classify_lead(state: dict) -> str:
     return state.get("score") or "warm"
 
 
-async def store_lead(state: dict, score: str) -> bool:
+async def store_lead(state: dict, score: str, app_state=None) -> bool:
     from tools.sheets_tools import sheets_tools
     vertical = state.get("vertical", "hvac")
     sheet_id = _sheet_id_for_vertical(vertical)
@@ -64,6 +64,7 @@ async def store_lead(state: dict, score: str) -> bool:
             sheet_id=sheet_id,
             tab_name=f"{score.capitalize()} Leads",
             row_data=row,
+            app_state=app_state,
         )
         return True
     except Exception as exc:
@@ -72,10 +73,10 @@ async def store_lead(state: dict, score: str) -> bool:
         return False
 
 
-async def send_email_notification(state: dict, score: str) -> bool:
+async def send_email_notification(state: dict, score: str, app_state=None) -> bool:
     try:
         from tools.email_tools import email_tools
-        await email_tools.send_lead_notification(state, score)
+        await email_tools.send_lead_notification(state, score, app_state=app_state)
         return True
     except Exception as exc:
         logger.error("email_notification_failed", error=str(exc),
@@ -83,7 +84,7 @@ async def send_email_notification(state: dict, score: str) -> bool:
         return False
 
 
-async def send_whatsapp_notification(state: dict) -> bool:
+async def send_whatsapp_notification(state: dict, app_state=None) -> bool:
     """
     BUG FIX: original passed `score` param which notify_user/notify_team
     don't accept (they read score from state). Also had nested gather()
@@ -92,8 +93,8 @@ async def send_whatsapp_notification(state: dict) -> bool:
     try:
         from tools.whatsapp_tools import whatsapp_tools
         await asyncio.gather(
-            whatsapp_tools.notify_user(state),
-            whatsapp_tools.notify_team(state),
+            whatsapp_tools.notify_user(state, app_state=app_state),
+            whatsapp_tools.notify_team(state, app_state=app_state),
             return_exceptions=True,
         )
         return True
@@ -103,14 +104,14 @@ async def send_whatsapp_notification(state: dict) -> bool:
         return False
 
 
-async def sync_to_hubspot(state: dict) -> dict:
+async def sync_to_hubspot(state: dict, app_state=None) -> dict:
     """
     BUG FIX: was importing sync_lead_to_hubspot as a bare function.
     hubspot_tools.py now exposes it via the HubSpotTools singleton.
     """
     try:
         from tools.hubspot_tools import hubspot_tools
-        results = await hubspot_tools.sync_lead(state)
+        results = await hubspot_tools.sync_lead(state, app_state=app_state)
         logger.info("hubspot_sync_ok",
                     contact_id=results.get("contact_id"),
                     deal_id=results.get("deal_id"),
@@ -126,6 +127,7 @@ async def sync_to_hubspot(state: dict) -> dict:
 async def run_delivery_pipeline(state: dict) -> dict:
     """Full post-chat delivery pipeline. Each step is isolated."""
     session_id = state.get("session_id")
+    app_state  = state.get("_app_state")
     log = logger.bind(session_id=session_id, vertical=state.get("vertical"))
 
     results: dict = {
@@ -140,11 +142,11 @@ async def run_delivery_pipeline(state: dict) -> dict:
     results["score"] = score
     log.info("delivery_pipeline_start", score=score)
 
-    results["stored"] = await store_lead(state, score)
+    results["stored"] = await store_lead(state, score, app_state=app_state)
 
     email_ok, wa_ok = await asyncio.gather(
-        send_email_notification(state, score),
-        send_whatsapp_notification(state),
+        send_email_notification(state, score, app_state=app_state),
+        send_whatsapp_notification(state, app_state=app_state),
         return_exceptions=True,
     )
     results["email_sent"] = email_ok is True
