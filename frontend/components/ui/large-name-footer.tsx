@@ -87,7 +87,7 @@ export function Footer() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-12 sm:gap-8">
             {Object.entries(FOOTER_LINKS).map(([title, links]) => (
               <div key={title} className="space-y-8">
-                <h3 className="font-outfit font-black uppercase tracking-[0.3em] text-xs opacity-40">
+                <h3 className="font-outfit font-black uppercase tracking-[0.3em] text-xs opacity-60">
                   {title}
                 </h3>
                 <ul className="space-y-5">
@@ -120,7 +120,7 @@ export function Footer() {
             {/* Sub-Footer Controls */}
             <div className="w-full flex flex-col md:flex-row items-center justify-between gap-8 mt-16 text-muted-foreground font-bold text-xs uppercase tracking-[0.2em]">
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-8">
-                <span className="opacity-60 hover:opacity-100 transition-opacity">
+                <span className="opacity-80 hover:opacity-100 transition-opacity">
                   © {new Date().getFullYear()} AutomEdge AI Inc.
                 </span>
               </div>

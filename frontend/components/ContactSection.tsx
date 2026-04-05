@@ -59,7 +59,10 @@ export function ContactSection() {
   };
 
   return (
-    <section id="contact" className="py-24 md:py-32 px-6 max-w-7xl mx-auto scroll-mt-24">
+    <section
+      id="contact"
+      className="py-24 md:py-32 px-6 max-w-7xl mx-auto scroll-mt-24"
+    >
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-start">
         {/* Left: Form */}
         <motion.div
@@ -105,7 +108,7 @@ export function ContactSection() {
                 }
               />
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <input
                 type="text"
@@ -189,13 +192,21 @@ export function ContactSection() {
               </div>
 
               {status === "success" && (
-                <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-accent font-bold text-lg text-center lg:text-left">
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-accent font-bold text-lg text-center lg:text-left"
+                >
                   ✓ Successfully sent. We'll be in touch!
                 </motion.p>
               )}
               {status === "error" && (
-                <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-destructive font-bold text-lg text-center lg:text-left">
-                   ✗ Failed to send. Please try again or email us directly.
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-destructive font-bold text-lg text-center lg:text-left"
+                >
+                  ✗ Failed to send. Please try again or email us directly.
                 </motion.p>
               )}
             </div>
@@ -260,14 +271,15 @@ export function ContactSection() {
             </h3>
             <div className="flex flex-wrap justify-center lg:justify-start gap-6">
               {[
-                { icon: <X />, href: "#" },
-                { icon: <Linkedin />, href: "#" },
-                { icon: <Facebook />, href: "#" },
-                { icon: <Instagram />, href: "#" },
+                { icon: <X />, href: "#", label: "Twitter" },
+                { icon: <Linkedin />, href: "#", label: "LinkedIn" },
+                { icon: <Facebook />, href: "#", label: "Facebook" },
+                { icon: <Instagram />, href: "#", label: "Instagram" },
               ].map((social, i) => (
                 <a
                   key={i}
                   href={social.href}
+                  aria-label={social.label}
                   className="w-20 h-20 rounded-3xl border-2 border-border flex items-center justify-center hover:bg-foreground hover:text-background hover:border-foreground transition-all text-muted-foreground shadow-sm hover:shadow-xl [&_svg]:w-8 [&_svg]:h-8"
                 >
                   {social.icon}

@@ -92,7 +92,7 @@ export function Navbar() {
         {/* Mobile Menu */}
         <Drawer direction="top">
           <DrawerTrigger className="lg:hidden p-2 rounded-md hover:bg-muted">
-            <Equal className="h-6 w-6" />
+            <Equal className="h-6 w-6" aria-label="Menu" />
           </DrawerTrigger>
 
           <DrawerContent className="pt-10 px-10 bg-background/60 backdrop-blur-xl">

@@ -270,33 +270,14 @@ export function DemoWorkflowSection() {
 
         {/* Central Core */}
         <div className="relative z-10 w-full flex justify-center items-center mx-auto">
-          <motion.div
-            animate={{ y: [0, -6, 0] }}
-            transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-            className="
-              w-36 h-36 md:w-52 md:h-52 
-              rounded-[3.5rem] 
-              flex items-center justify-center 
-              bg-accent 
-              border-4 border-accent/20 
-              overflow-hidden relative
-              shadow-[0_0_80px_rgba(29,158,117,0.25)]
-              dark:shadow-[0_0_90px_rgba(29,158,117,0.4)]
-            "
-          >
-            <Image
-              src="/short-logo.png"
-              alt="AutomEdge Logo"
-              fill
-              sizes="150px"
-              className="
-                object-contain 
-                pointer-events-none 
-                select-none
-                p-3 md:p-4
-              "
-            />
-          </motion.div>
+          <Image
+            src="/characters/auto-research.png"
+            alt="Friends"
+            width={380}
+            height={380}
+            // className=""
+          />
+
           {/* Corrected SVG ViewBox and Paths */}
           <svg
             className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[800px] pointer-events-none -z-10"
