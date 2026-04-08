@@ -1,8 +1,16 @@
+"use client";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { m as motion } from "framer-motion";
-import { User, Mail, Phone, ArrowRight, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { motion } from "framer-motion";
+import {
+  User,
+  Mail,
+  Phone,
+  ArrowRight,
+  ShieldCheck,
+  CheckCircle2,
+} from "lucide-react";
 import { UserInfo } from "./types";
 import { Button } from "@/components/ui/button";
 
@@ -134,7 +142,10 @@ export function LeadForm({
                 />
                 {isValidField && (
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 text-accent">
-                    <CheckCircle2 size={14} className="animate-in fade-in zoom-in duration-300" />
+                    <CheckCircle2
+                      size={14}
+                      className="animate-in fade-in zoom-in duration-300"
+                    />
                   </div>
                 )}
               </div>
@@ -155,7 +166,10 @@ export function LeadForm({
           ) : (
             <div className="flex items-center justify-center gap-2">
               Start Live Case Study
-              <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+              <ArrowRight
+                size={16}
+                className="group-hover:translate-x-1 transition-transform"
+              />
             </div>
           )}
         </Button>

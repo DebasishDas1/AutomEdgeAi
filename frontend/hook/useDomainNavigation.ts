@@ -1,6 +1,13 @@
 const isLocalhost = (host: string) =>
   host.includes("localhost") || host.includes("127.0.0.1");
 
+const isValidSubdomain = (subdomain?: string) =>
+  typeof subdomain === "string" &&
+  subdomain.length > 0 &&
+  /^[a-z0-9-]+$/.test(subdomain) &&
+  !subdomain.startsWith("-") &&
+  !subdomain.endsWith("-");
+
 
 export const getDomainUrl = (subdomain?: string) => {
   if (typeof window === "undefined") return "/";
@@ -11,14 +18,18 @@ export const getDomainUrl = (subdomain?: string) => {
   if (!root) return "/";
 
   // Local dev → use path instead of subdomain
+  const effectiveSubdomain = isValidSubdomain(subdomain)
+    ? subdomain
+    : undefined;
+
   if (isLocalhost(window.location.hostname)) {
-    if (!subdomain) return `${protocol}//${root}`;
-    return `${protocol}//${root}/${subdomain}`;
+    if (!effectiveSubdomain) return `${protocol}//${root}`;
+    return `${protocol}//${root}/${effectiveSubdomain}`;
   }
 
   // Production → real subdomains
-  if (!subdomain) return `${protocol}//${root}`;
-  return `${protocol}//${subdomain}.${root}`;
+  if (!effectiveSubdomain) return `${protocol}//${root}`;
+  return `${protocol}//${effectiveSubdomain}.${root}`;
 };
 
 
@@ -51,12 +62,15 @@ export const useDomainNavigation = () => {
     const host = window.location.hostname;
     const protocol = window.location.protocol;
     const root = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
+    const effectiveSubdomain = isValidSubdomain(subdomain)
+      ? subdomain
+      : undefined;
 
     if (!root) return { url: "/", isExternal: false };
 
     // LOCALHOST logic (dev)
     if (isLocalhost(host)) {
-      const path = subdomain ? `/${subdomain}` : "/";
+      const path = effectiveSubdomain ? `/${effectiveSubdomain}` : "/";
       return { url: path, isExternal: false };
     }
 
@@ -64,13 +78,13 @@ export const useDomainNavigation = () => {
     const currentSubdomain = getCurrentSubdomain();
 
     // If already on the target subdomain, it's internal navigation
-    if (currentSubdomain === (subdomain || null)) {
+    if (currentSubdomain === (effectiveSubdomain || null)) {
       return { url: "/", isExternal: false };
     }
 
     // If navigating to root or another subdomain
-    const url = subdomain 
-      ? `${protocol}//${subdomain}.${root}`
+    const url = effectiveSubdomain 
+      ? `${protocol}//${effectiveSubdomain}.${root}`
       : `${protocol}//${root}`;
 
     return { url, isExternal: true };
@@ -87,7 +101,17 @@ export const useDomainNavigation = () => {
   };
 
   const goToDemo = (industry: string) => {
-    goTo(`demo-${industry}`);
+    const safeIndustry = industry
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "")
+      .replace(/^-+|-+$/g, "");
+
+    if (!safeIndustry) {
+      goHome();
+      return;
+    }
+
+    goTo(`demo-${safeIndustry}`);
   };
 
   const goHome = () => {

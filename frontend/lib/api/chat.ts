@@ -4,8 +4,27 @@
  * Optimized for consolidated backend endpoints (/api/v1/chat/*).
  */
 
-const baseUrl = () =>
-  process.env.NEXT_PUBLIC_API_URL ?? "https://automedge-backend.onrender.com";
+const assertApiUrl = (): string => {
+  const url = process.env.NEXT_PUBLIC_API_URL;
+
+  if (!url) {
+    throw new Error(
+      "Missing NEXT_PUBLIC_API_URL. Set it in your environment before running the frontend."
+    );
+  }
+
+  if (
+    !url.startsWith("https://") &&
+    !url.startsWith("http://localhost") &&
+    !url.startsWith("http://127.0.0.1")
+  ) {
+    throw new Error("NEXT_PUBLIC_API_URL must use https:// in production.");
+  }
+
+  return url.replace(/\/+$/, "");
+};
+
+const baseUrl = assertApiUrl;
 
 export interface StartChatResponse {
   session_id: string;

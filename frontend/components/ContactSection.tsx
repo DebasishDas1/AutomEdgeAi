@@ -1,6 +1,5 @@
 "use client";
 
-import { m as motion } from "framer-motion";
 import {
   Send,
   MessageCircle,
@@ -65,12 +64,7 @@ export function ContactSection() {
     >
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-start">
         {/* Left: Form */}
-        <motion.div
-          initial={{ opacity: 0, x: -30 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }}
-          className="space-y-12 text-center lg:text-left"
-        >
+        <div className="space-y-12 text-center lg:text-left">
           <div className="flex flex-col items-center lg:items-start">
             <h2 className="text-5xl md:text-7xl font-outfit font-extrabold mb-6 tracking-tighter leading-none text-foreground">
               Let's talk scale.
@@ -192,34 +186,21 @@ export function ContactSection() {
               </div>
 
               {status === "success" && (
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-accent font-bold text-lg text-center lg:text-left"
-                >
+                <p className="text-accent font-bold text-lg text-center lg:text-left">
                   ✓ Successfully sent. We'll be in touch!
-                </motion.p>
+                </p>
               )}
               {status === "error" && (
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-destructive font-bold text-lg text-center lg:text-left"
-                >
+                <p className="text-destructive font-bold text-lg text-center lg:text-left">
                   ✗ Failed to send. Please try again or email us directly.
-                </motion.p>
+                </p>
               )}
             </div>
           </form>
-        </motion.div>
+        </div>
 
         {/* Right: Direct Contact & Socials */}
-        <motion.div
-          initial={{ opacity: 0, x: 30 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }}
-          className="space-y-16 flex flex-col items-center lg:items-start text-center lg:text-left"
-        >
+        <div className="space-y-16 flex flex-col items-center lg:items-start text-center lg:text-left">
           <div className="space-y-8 w-full">
             <h3 className="text-xl font-outfit font-black tracking-[0.3em] uppercase opacity-40">
               Direct Contact
@@ -287,7 +268,7 @@ export function ContactSection() {
               ))}
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
     </section>
   );

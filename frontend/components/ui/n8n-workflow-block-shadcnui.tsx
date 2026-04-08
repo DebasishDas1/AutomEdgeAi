@@ -1,4 +1,5 @@
-import { m as motion, type PanInfo } from "framer-motion";
+"use client";
+import { motion, type PanInfo } from "framer-motion";
 import type React from "react";
 import { useRef, useState } from "react";
 import { flushSync } from "react-dom";

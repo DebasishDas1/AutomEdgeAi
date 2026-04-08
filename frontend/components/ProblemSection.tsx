@@ -1,6 +1,3 @@
-"use client";
-
-import { m as motion } from "framer-motion";
 import {
   Clock,
   MessageSquareOff,
@@ -47,51 +44,30 @@ export function ProblemSection() {
   return (
     <section id="problem" className="py-32 px-6 max-w-7xl mx-auto scroll-mt-24">
       <div className="text-center mb-24 space-y-6">
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="inline-flex items-center gap-2 px-6 py-2 rounded-full border border-destructive/20 bg-destructive/5 text-destructive font-black text-xs uppercase tracking-[0.2em]"
-        >
+        <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full border border-destructive/20 bg-destructive/5 text-destructive font-black text-xs uppercase tracking-[0.2em]">
           The Problem
-        </motion.div>
+        </div>
 
-        <motion.h2
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="text-5xl md:text-8xl font-outfit font-black tracking-tighter leading-[0.9] max-w-5xl mx-auto"
-        >
+        <h2 className="text-5xl md:text-8xl font-outfit font-black tracking-tighter leading-[0.9] max-w-5xl mx-auto">
           Leads go cold in
           <span className="text-accent underline decoration-accent/20 decoration-8 underline-offset-8">
             5 minutes.
           </span>
-        </motion.h2>
+        </h2>
 
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.2 }}
-          className="text-xl md:text-3xl text-muted-foreground font-bold tracking-tight max-w-2xl mx-auto leading-tight"
-        >
+        <p className="text-xl md:text-3xl text-muted-foreground font-bold tracking-tight max-w-2xl mx-auto leading-tight">
           Most service businesses lose{" "}
           <span className="text-foreground underline decoration-destructive/30 decoration-4 underline-offset-4">
             30–60%
           </span>{" "}
           of their leads to friction and slow responses.
-        </motion.p>
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 relative">
         {PROBLEMS.map((item, index) => (
-          <motion.div
+          <div
             key={index}
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: index * 0.1 }}
-            whileHover={{ y: -8 }}
             className="relative group p-10 rounded-[2.5rem] border-border/50 bg-card/40 backdrop-blur-xl hover:border-accent/40 transition-all duration-500 shadow-sm hover:shadow-2xl flex flex-col items-center text-center"
           >
             <div className="mb-8 w-20 h-20 rounded-2xl flex items-center justify-center bg-primary/10 transition-all shadow-inner [&_svg]:w-10 [&_svg]:h-10">
@@ -106,7 +82,7 @@ export function ProblemSection() {
                 {item.desc}
               </p>
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
     </section>

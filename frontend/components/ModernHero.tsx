@@ -1,6 +1,5 @@
 "use client";
 
-import { m } from "framer-motion";
 import { Zap, Check, Video } from "lucide-react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
@@ -22,21 +21,6 @@ export const ModernHero = () => {
 
   return (
     <section className="relative w-full min-h-[95vh] flex flex-col items-center justify-center pt-28 pb-20 px-6 md:px-12 overflow-hidden bg-background">
-      {/* ── PERFORMANCE: Pure CSS Hardware-Accelerated Animations ────────────── */}
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-        @keyframes float-loop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
-        @keyframes float-loop-slow { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(20px); } }
-        @keyframes float-loop-tilt { 0%, 100% { transform: rotate(0deg) translateY(0); } 50% { transform: rotate(4deg) translateY(-10px); } }
-        @keyframes aura-pulse { 0%, 100% { opacity: 0.35; transform: scale(1); } 50% { opacity: 0.55; transform: scale(1.08); } }
-        .animate-float { animation: float-loop 6s ease-in-out infinite; }
-        .animate-float-slow { animation: float-loop-slow 8s ease-in-out infinite; }
-        .animate-float-tilt { animation: float-loop-tilt 7s ease-in-out infinite; }
-        .animate-aura { animation: aura-pulse 12s ease-in-out infinite; }
-      `,
-        }}
-      />
 
       {/* ── AMBIENT AESTHETICS ────────────────────────────────────────────────── */}
       <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
@@ -73,42 +57,26 @@ export const ModernHero = () => {
       <div className="absolute inset-0 z-0 pointer-events-none hidden lg:block">
         {/* Left Flank */}
         <div className="absolute left-[7%] top-1/2 -translate-y-1/2 flex flex-col items-center gap-20">
-          <m.div
-            initial={{ opacity: 0, x: -30 }}
-            animate={{ opacity: 0.9, x: 0 }}
-            transition={{ duration: 1, delay: 0.4 }}
-            className="animate-float"
-          >
-            <Image
-              src="/characters/auto-wave.png"
-              alt="Wave"
-              width={220}
-              height={220}
-            />
-          </m.div>
-          <m.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 0.4, x: 0 }}
-            transition={{ duration: 1.2, delay: 0.8 }}
-            className="animate-float-tilt"
-          >
-            <Image
-              src="/characters/auto-coffee.png"
-              alt="Coffee"
-              width={140}
-              height={140}
-            />
-          </m.div>
-        </div>
-
+            <div className="animate-float opacity-100">
+              <Image
+                src="/characters/auto-wave.png"
+                alt="Wave"
+                width={220}
+                height={220}
+              />
+            </div>
+            <div className="animate-float-tilt opacity-100">
+              <Image
+                src="/characters/auto-coffee.png"
+                alt="Coffee"
+                width={140}
+                height={140}
+              />
+            </div>
+          </div>
         {/* Right Flank */}
         <div className="absolute right-[7%] top-1/2 -translate-y-1/2 flex flex-col items-center gap-16">
-          <m.div
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 1, delay: 0.6 }}
-            className="animate-float-slow"
-          >
+          <div className="animate-float-slow opacity-100">
             <Image
               src="/characters/auto-friends.png"
               alt="Friends"
@@ -118,28 +86,20 @@ export const ModernHero = () => {
               fetchPriority="high"
               priority
             />
-          </m.div>
-          <m.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 0.5, x: 0 }}
-            transition={{ duration: 1.2, delay: 1 }}
-            className="animate-float-tilt"
-          >
+          </div>
+          <div className="animate-float-tilt opacity-100">
             <Image
               src="/characters/auto-research.png"
               alt="Research"
               width={170}
               height={170}
             />
-          </m.div>
+          </div>
         </div>
       </div>
 
       {/* ── CENTRAL CONTENT CARD (Premium Glassmorphism) ───────────────────── */}
-      <m.div
-        initial={{ opacity: 0, scale: 0.98, y: 40 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
+      <div
         className="relative z-10 w-full max-w-4xl mx-auto flex flex-col items-center text-center gap-10 p-10 md:p-20 rounded-[56px] 
         bg-white/2 dark:bg-black/40 backdrop-blur-2xl border border-white/10 
         shadow-[0_48px_120px_-32px_rgba(0,0,0,0.5),inset_0_0_2px_rgba(255,255,255,0.05)]
@@ -206,7 +166,7 @@ export const ModernHero = () => {
             </div>
           ))}
         </div>
-      </m.div>
+      </div>
 
       {/* ── DECORATIVE TRIM ───────────────────────────────────────────────────── */}
       <div className="absolute bottom-0 left-0 w-full h-48 bg-linear-to-t from-background via-background/40 to-transparent z-20 pointer-events-none" />

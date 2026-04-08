@@ -1,6 +1,5 @@
 "use client";
 
-import { m as motion } from "framer-motion";
 import {
   Zap,
   Bot,
@@ -81,54 +80,31 @@ export const HowItWorks = () => {
 
       <div className="max-w-[1400px] mx-auto">
         <div className="text-center mb-24">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 mb-8"
-          >
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 mb-8">
             <Zap size={14} className="text-accent fill-accent" />
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-accent">
               Our Process
             </span>
-          </motion.div>
+          </div>
 
-          <motion.h2
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-5xl md:text-7xl font-outfit font-black leading-[1.1] mb-8 tracking-tighter text-slate-900 dark:text-white"
-          >
+          <h2 className="text-5xl md:text-7xl font-outfit font-black leading-[1.1] mb-8 tracking-tighter text-slate-900 dark:text-white">
             The lead lifecycle, <br />
             <span className="text-transparent bg-clip-text bg-linear-to-r from-accent to-emerald-500">
               completely automated.
             </span>
-          </motion.h2>
+          </h2>
 
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.1 }}
-            className="text-lg md:text-xl text-slate-500 dark:text-slate-400 max-w-2xl mx-auto font-medium"
-          >
+          <p className="text-lg md:text-xl text-slate-500 dark:text-slate-400 max-w-2xl mx-auto font-medium">
             Stop losing jobs to slow replies. Our AI handles every stage from
             capture to follow-up and reviews.
-          </motion.p>
+          </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-y-16 lg:gap-8 relative items-start">
           {/* Connecting Line removed as requested */}
 
           {steps.map((step, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1, duration: 0.6 }}
-              className="group relative"
-            >
+            <div key={i} className="group relative">
               <div className="flex flex-col items-center">
                 {/* Step Icon & Number Hub */}
                 <div className="relative mb-10 w-24 h-24">
@@ -192,7 +168,7 @@ export const HowItWorks = () => {
               <div
                 className={`absolute inset-0 ${step.bgColor} rounded-[40px] opacity-0 group-hover:opacity-100 transition-all duration-500 -z-10 blur-xl scale-95 group-hover:scale-105`}
               />
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>

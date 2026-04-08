@@ -1,6 +1,5 @@
 "use client";
 
-import { m as motion } from "framer-motion";
 import {
   Zap,
   Wind,
@@ -67,31 +66,19 @@ const BezierEdge = ({
   duration?: number;
 }) => (
   <>
-    <motion.path
+    <path
       d={d}
       fill="none"
       stroke="currentColor"
       strokeWidth="1.5"
       className="text-accent/10 dark:text-accent/15"
-      initial={{ pathLength: 0, opacity: 0 }}
-      whileInView={{ pathLength: 1, opacity: 1 }}
-      viewport={{ once: true }}
-      transition={{ duration: 1.2, delay, ease: "easeInOut" }}
     />
-    <motion.path
+    <path
       d={d}
       fill="none"
       stroke="url(#pulse-gradient)"
       strokeWidth="2.5"
       strokeLinecap="round"
-      initial={{ pathOffset: 0, pathLength: 0.1, opacity: 0 }}
-      animate={{ pathOffset: [-1.1, 1.1], opacity: [0, 1, 0] }}
-      transition={{
-        duration: duration,
-        repeat: Infinity,
-        delay: delay + 0.5,
-        ease: "linear",
-      }}
     />
   </>
 );
@@ -119,17 +106,7 @@ const DemoCard = memo(({ index, demo }: any) => {
       scroll
       className="group block relative z-10 w-full lg:max-w-[340px]"
     >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.98, y: 20 }}
-        whileInView={{ opacity: 1, scale: 1, y: 0 }}
-        viewport={{ once: true, margin: "-100px" }}
-        transition={{
-          delay: index * 0.1,
-          duration: 0.6,
-          ease: [0.16, 1, 0.3, 1],
-        }}
-        className="h-full relative"
-      >
+      <div className="h-full relative">
         <div className="absolute -inset-1 bg-accent/5 rounded-4xl blur-xl opacity-0 group-hover:opacity-100 transition-all duration-700 -z-10" />
 
         <div
@@ -165,7 +142,7 @@ const DemoCard = memo(({ index, demo }: any) => {
             <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
           </div>
         </div>
-      </motion.div>
+      </div>
     </Link>
   );
 });
@@ -191,15 +168,10 @@ export function DemoWorkflowSection() {
 
       {/* Header */}
       <div className="text-center mb-32 relative">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          whileInView={{ opacity: 1, scale: 1 }}
-          viewport={{ once: true }}
-          className="inline-flex items-center gap-3 px-6 py-2 rounded-full bg-white/5 border border-white/10 text-accent font-black text-[11px] uppercase tracking-[0.3em] mb-10 shadow-2xl backdrop-blur-xl"
-        >
+        <div className="inline-flex items-center gap-3 px-6 py-2 rounded-full bg-white/5 border border-white/10 text-accent font-black text-[11px] uppercase tracking-[0.3em] mb-10 shadow-2xl backdrop-blur-xl">
           <Sparkles className="w-4 h-4 fill-accent" />
           The Industry Engine
-        </motion.div>
+        </div>
 
         <h2 className="hero-headline opacity-90 mb-8">
           Neural <span className="text-accent italic">Execution</span> Stack.
@@ -215,17 +187,7 @@ export function DemoWorkflowSection() {
       <div className="relative flex flex-col items-center gap-32 md:gap-40 max-w-6xl mx-auto w-full">
         {/* Trigger Node */}
         <div className="relative z-10">
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            className="px-8 py-5 rounded-4xl 
-               bg-background/60 backdrop-blur-md 
-               text-foreground 
-               flex items-center gap-5 
-               shadow-3xl group cursor-pointer 
-               border border-border/40
-               shadow-2xl
-               "
-          >
+          <div className="px-8 py-5 rounded-4xl bg-background/60 backdrop-blur-md text-foreground flex items-center gap-5 transition-transform duration-300 transform hover:scale-105 cursor-pointer border border-border/40 shadow-3xl shadow-2xl">
             {/* Icon Bubble */}
             <div
               className="w-12 h-12 rounded-2xl 
@@ -257,7 +219,7 @@ export function DemoWorkflowSection() {
                  shadow-[0_0_15px_rgba(245,158,11,0.6)] 
                  dark:shadow-[0_0_15px_rgba(251,191,36,0.6)]"
             />
-          </motion.div>
+          </div>
 
           {/* Pointer bubble */}
           <div

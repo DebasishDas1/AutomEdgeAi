@@ -210,6 +210,17 @@
     --ring:                    #1D9E75;
   }
 
+  /* Hero floating decoration CSS moved from inline runtime injection */
+  @keyframes float-loop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
+  @keyframes float-loop-slow { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(20px); } }
+  @keyframes float-loop-tilt { 0%, 100% { transform: rotate(0deg) translateY(0); } 50% { transform: rotate(4deg) translateY(-10px); } }
+  @keyframes aura-pulse { 0%, 100% { opacity: 0.35; transform: scale(1); } 50% { opacity: 0.55; transform: scale(1.08); } }
+
+  .animate-float { animation: float-loop 6s ease-in-out infinite; }
+  .animate-float-slow { animation: float-loop-slow 8s ease-in-out infinite; }
+  .animate-float-tilt { animation: float-loop-tilt 7s ease-in-out infinite; }
+  .animate-aura { animation: aura-pulse 12s ease-in-out infinite; }
+
   /* Auto dark from system preference (no JS needed) */
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {

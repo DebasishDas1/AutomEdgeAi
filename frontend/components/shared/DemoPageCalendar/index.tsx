@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { m as motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Calendar as CalendarIcon, Check } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Card } from "@/components/ui/card";
@@ -96,12 +96,14 @@ export const DemoPageCalendar = ({
 
     try {
       await createBooking({
-        name:         formData.name,
-        email:        formData.email,
-        business:      formData.website || "No Business Listed",
-        vertical:      type,
-        scheduled_at:  selectedSlot ? selectedSlot.toISOString() : new Date().toISOString(),
-        team_size:     formData.teamSize,
+        name: formData.name,
+        email: formData.email,
+        business: formData.website || "No Business Listed",
+        vertical: type,
+        scheduled_at: selectedSlot
+          ? selectedSlot.toISOString()
+          : new Date().toISOString(),
+        team_size: formData.teamSize,
       });
       setBookingStep("success");
     } catch (err) {

@@ -1,19 +1,12 @@
 "use client";
 
-import { m as motion } from "framer-motion";
-
 export function LogoCloud() {
   return (
     <section className="py-24 px-6 bg-muted/20 border-y border-border/10">
       <div className="max-w-7xl mx-auto text-center">
-        <motion.h2
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          className="text-xl font-black tracking-[0.4em] uppercase text-muted-foreground/60 mb-16"
-        >
+        <h2 className="text-xl font-black tracking-[0.4em] uppercase text-muted-foreground/60 mb-16">
           Trusted by Service Businesses
-        </motion.h2>
+        </h2>
 
         <div className="flex flex-wrap items-center justify-center gap-x-12 md:gap-x-20 gap-y-12 opacity-80 grayscale group hover:grayscale-0 transition-all duration-700">
           <span className="text-3xl font-black font-outfit tracking-tighter">

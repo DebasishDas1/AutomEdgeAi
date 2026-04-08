@@ -2,29 +2,65 @@ import dynamic from "next/dynamic";
 import { Navbar } from "@/components/Navbar";
 import { ModernHero } from "@/components/ModernHero";
 import type { Metadata } from "next";
+import { HeroBlock } from "@/components/ui/hero-block-shadcnui";
 
 // Above the fold - Static
 // Navbar and ModernHero remain static for immediate LCP
 
 // Below the fold - Dynamic
-const ProblemSection = dynamic(() => import("@/components/ProblemSection").then(mod => mod.ProblemSection));
-const HowItWorks = dynamic(() => import("@/components/HowItWorks").then(mod => mod.HowItWorks));
-const SolutionSection = dynamic(() => import("@/components/SolutionSection").then(mod => mod.SolutionSection));
-const DemoWorkflowSection = dynamic(() => import("@/components/DemoWorkflowSection").then(mod => mod.DemoWorkflowSection));
-const ImpactSection = dynamic(() => import("@/components/ImpactSection").then(mod => mod.ImpactSection));
-const LogoCloud = dynamic(() => import("@/components/LogoCloud").then(mod => mod.LogoCloud));
-const FAQSection = dynamic(() => import("@/components/FAQSection").then(mod => mod.FAQSection));
-const ContactSection = dynamic(() => import("@/components/ContactSection").then(mod => mod.ContactSection));
-const Footer = dynamic(() => import("@/components/ui/large-name-footer").then(mod => mod.Footer));
+const placeholder = () => <div className="min-h-[300px] bg-background" />;
+
+const ProblemSection = dynamic(
+  () => import("@/components/ProblemSection").then((mod) => mod.ProblemSection),
+  { loading: placeholder },
+);
+const HowItWorks = dynamic(
+  () => import("@/components/HowItWorks").then((mod) => mod.HowItWorks),
+  { loading: placeholder },
+);
+const SolutionSection = dynamic(
+  () =>
+    import("@/components/SolutionSection").then((mod) => mod.SolutionSection),
+  { loading: placeholder },
+);
+const DemoWorkflowSection = dynamic(
+  () =>
+    import("@/components/DemoWorkflowSection").then(
+      (mod) => mod.DemoWorkflowSection,
+    ),
+  { loading: placeholder },
+);
+const ImpactSection = dynamic(
+  () => import("@/components/ImpactSection").then((mod) => mod.ImpactSection),
+  { loading: placeholder },
+);
+const LogoCloud = dynamic(
+  () => import("@/components/LogoCloud").then((mod) => mod.LogoCloud),
+  { loading: placeholder },
+);
+const FAQSection = dynamic(
+  () => import("@/components/FAQSection").then((mod) => mod.FAQSection),
+  { loading: placeholder },
+);
+const ContactSection = dynamic(
+  () => import("@/components/ContactSection").then((mod) => mod.ContactSection),
+  { loading: placeholder },
+);
+const Footer = dynamic(
+  () => import("@/components/ui/large-name-footer").then((mod) => mod.Footer),
+  { loading: placeholder },
+);
 
 export const metadata: Metadata = {
   title: "Stop Losing Jobs to Slow Follow-Up | AutomEdge AI",
-  description: "AutomEdge responds to every HVAC, Roofing, and Plumbing lead in <60 seconds. Our AI qualifies, books, and follows up automatically so you can focus on the job.",
+  description:
+    "AutomEdge responds to every HVAC, Roofing, and Plumbing lead in <60 seconds. Our AI qualifies, books, and follows up automatically so you can focus on the job.",
   openGraph: {
     title: "Stop Losing Jobs to Slow Follow-Up | AutomEdge AI",
-    description: "Respond to every lead in <60 seconds. Our AI qualifies, books, and follows up automatically.",
+    description:
+      "Respond to every lead in <60 seconds. Our AI qualifies, books, and follows up automatically.",
     images: [{ url: "/hvac.png" }], // Using an existing image as og-image
-  }
+  },
 };
 
 const FAQS = [
@@ -59,7 +95,8 @@ export default function Homepage() {
   return (
     <main className="min-h-screen relative overflow-hidden">
       <Navbar />
-      <ModernHero />
+      <HeroBlock />
+      {/* <ModernHero /> */}
 
       <div className="space-y-32 pb-12">
         <ProblemSection />

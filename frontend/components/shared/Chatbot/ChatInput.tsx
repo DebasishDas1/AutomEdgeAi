@@ -1,4 +1,5 @@
-import { m as motion } from "framer-motion";
+"use client";
+import { motion } from "framer-motion";
 import { Send, Sparkles } from "lucide-react";
 import { RefObject } from "react";
 

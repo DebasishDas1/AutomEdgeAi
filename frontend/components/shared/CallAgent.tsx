@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Mic, PhoneOff, PhoneCall, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { m } from "framer-motion";
+import { motion as m } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
 import { createWebCall } from "@/lib/api/retell";
 

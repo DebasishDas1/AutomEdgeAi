@@ -1,6 +1,6 @@
 "use client";
 
-import { m as motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { Calendar as CalendarIcon } from "lucide-react";
 
 type CalendarHeaderProps = {
@@ -9,7 +9,11 @@ type CalendarHeaderProps = {
   description?: string;
 };
 
-export const CalendarHeader = ({ title, highlight, description }: CalendarHeaderProps) => {
+export const CalendarHeader = ({
+  title,
+  highlight,
+  description,
+}: CalendarHeaderProps) => {
   return (
     <motion.div
       initial={{ opacity: 0, y: 15 }}

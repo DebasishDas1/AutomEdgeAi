@@ -1,6 +1,5 @@
 "use client";
 
-import { m as motion } from "framer-motion";
 import {
   Timer,
   ArrowUpCircle,
@@ -51,24 +50,15 @@ export function ImpactSection() {
     >
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-20">
-          <motion.h2
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-5xl md:text-7xl font-outfit font-extrabold tracking-tighter"
-          >
+          <h2 className="text-5xl md:text-7xl font-outfit font-extrabold tracking-tighter">
             What This Means For Your Business
-          </motion.h2>
+          </h2>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-16 gap-x-8">
           {IMPACTS.map((item, index) => (
-            <motion.div
+            <div
               key={index}
-              initial={{ opacity: 0, scale: 0.9 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ delay: index * 0.1 }}
               className="text-center group flex flex-col items-center"
             >
               <div className="flex justify-center mb-8">
@@ -82,7 +72,7 @@ export function ImpactSection() {
               <div className="text-muted-foreground font-sans font-bold uppercase tracking-[0.2em] text-sm md:text-base">
                 {item.label}
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>

@@ -81,7 +81,6 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-import { LazyMotion, domMax } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 export default function RootLayout({
@@ -106,7 +105,6 @@ export default function RootLayout({
           "[word-break:break-word]",
         )}
       >
-        <LazyMotion features={domMax} strict>
           <Script
             id="json-ld"
             type="application/ld+json"
@@ -155,7 +153,6 @@ export default function RootLayout({
           />
           {children}
           <Toaster position="top-center" expand={true} richColors />
-        </LazyMotion>
       </body>
     </html>
   );

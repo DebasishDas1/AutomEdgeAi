@@ -1,6 +1,6 @@
 "use client";
 
-import { m as motion, Variants } from "framer-motion";
+import { motion, Variants } from "framer-motion";
 interface HandWrittenTitleProps {
   title?: string;
   subtitle?: string;
@@ -23,8 +23,8 @@ function HandWrittenTitle({
   };
 
   return (
-    <div className="relative w-full max-w-4xl mx-auto py-24">
-      <div className="absolute inset-0">
+    <span className="relative inline-block px-8 py-4 my-4">
+      <span className="absolute inset-0">
         <motion.svg
           width="100%"
           height="100%"
@@ -49,16 +49,16 @@ function HandWrittenTitle({
             className="text-cta"
           />
         </motion.svg>
-      </div>
-      <div className="relative text-center z-10 flex flex-col items-center justify-center">
-        <motion.h1
-          className="text-4xl md:text-6xl text-black dark:text-white tracking-tighter flex items-center gap-2"
+      </span>
+      <span className="relative text-center z-10 flex flex-col items-center justify-center">
+        <motion.span
+          className="text-4xl md:text-7xl font-display font-black tracking-tight text-accent block"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.8 }}
         >
           {title}
-        </motion.h1>
+        </motion.span>
         {subtitle && (
           <motion.p
             className="text-xl text-black/80 dark:text-white/80"
@@ -69,8 +69,8 @@ function HandWrittenTitle({
             {subtitle}
           </motion.p>
         )}
-      </div>
-    </div>
+      </span>
+    </span>
   );
 }
 

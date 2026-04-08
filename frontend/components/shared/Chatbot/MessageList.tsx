@@ -1,4 +1,5 @@
-import { AnimatePresence, m as motion } from "framer-motion";
+"use client";
+import { AnimatePresence, motion } from "framer-motion";
 import { Message } from "./types";
 import { RefObject, memo } from "react";
 import { Button } from "@/components/ui/button";

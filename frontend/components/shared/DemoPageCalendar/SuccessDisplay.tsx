@@ -1,6 +1,6 @@
 "use client";
 
-import { m as motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { CheckCircle2, Video } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -31,8 +31,14 @@ export const SuccessDisplay = ({
         You're all set!
       </h3>
       <p className="text-xl md:text-2xl text-muted-foreground max-w-lg mb-12 leading-relaxed font-medium">
-        Thanks, <span className="text-foreground font-black">{formData.name}</span>! <br className="hidden sm:block" />
-        We've sent a calendar invite to <span className="text-accent underline decoration-4 underline-offset-4">{formData.email}</span> for{" "}
+        Thanks,{" "}
+        <span className="text-foreground font-black">{formData.name}</span>!{" "}
+        <br className="hidden sm:block" />
+        We've sent a calendar invite to{" "}
+        <span className="text-accent underline decoration-4 underline-offset-4">
+          {formData.email}
+        </span>{" "}
+        for{" "}
         <span className="font-black text-foreground italic">
           {selectedSlot ? format(selectedSlot, "MMMM do 'at' h:mm a") : ""}
         </span>

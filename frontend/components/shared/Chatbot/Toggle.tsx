@@ -1,4 +1,5 @@
-import { m as motion, AnimatePresence } from "framer-motion";
+"use client";
+import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquare, X } from "lucide-react";
 
 interface ToggleProps {

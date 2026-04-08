@@ -1,8 +1,27 @@
 // lib/api/retell.ts
 // Handles web call session creation for Retell AI.
 
-const baseUrl = () =>
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const assertApiUrl = (): string => {
+  const url = process.env.NEXT_PUBLIC_API_URL;
+
+  if (!url) {
+    throw new Error(
+      "Missing NEXT_PUBLIC_API_URL. Set it in your environment before running the frontend."
+    );
+  }
+
+  if (
+    !url.startsWith("https://") &&
+    !url.startsWith("http://localhost") &&
+    !url.startsWith("http://127.0.0.1")
+  ) {
+    throw new Error("NEXT_PUBLIC_API_URL must use https:// in production.");
+  }
+
+  return url.replace(/\/+$/, "");
+};
+
+const baseUrl = assertApiUrl;
 
 export interface WebCallSession {
   access_token: string;
