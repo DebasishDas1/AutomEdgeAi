@@ -35,8 +35,8 @@ const MessageBubble = memo(({ msg, isLast, isTyping }: MessageBubbleProps) => {
     !isUser && isLast && isTyping
       ? {
           opacity: [0.45, 1, 0.45],
-          scale: [1, 1.015, 1], // small thoughtful swell
-          y: [0, -2, 0], // tiny “breathing” lift
+          scale: [1, 1.015, 1],
+          y: [0, -2, 0],
         }
       : {};
 
@@ -50,16 +50,16 @@ const MessageBubble = memo(({ msg, isLast, isTyping }: MessageBubbleProps) => {
     >
       <motion.div
         className={cn(
-          "max-w-[75%] px-4 py-3 rounded-lg text-[14px] leading-relaxed",
+          "max-w-[78%] px-4 py-3 rounded-lg text-[14px] leading-relaxed",
           isUser
-            ? "bg-accent/60 text-black dark:text-white"
-            : "bg-transparent text-black dark:text-white",
+            ? "bg-emerald-500 text-slate-950 dark:bg-accent dark:text-white font-bold"
+            : "",
         )}
         animate={typingFeel}
         transition={
           typingFeel.opacity
             ? {
-                duration: 2.4, // 🌙 much slower typing cadence
+                duration: 2.4,
                 repeat: Infinity,
                 ease: "easeInOut",
               }
@@ -72,7 +72,7 @@ const MessageBubble = memo(({ msg, isLast, isTyping }: MessageBubbleProps) => {
   );
 });
 
-MessageBubble.displayName = 'MessageBubble';
+MessageBubble.displayName = "MessageBubble";
 
 // ─── Quick Replies ─────────────────────────
 const QuickReplies = memo(({ replies, onQuickReply }: QuickRepliesProps) => {
@@ -80,15 +80,17 @@ const QuickReplies = memo(({ replies, onQuickReply }: QuickRepliesProps) => {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 4 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       className="flex flex-wrap gap-2"
     >
       {replies.map((r: { id: string; text: string }) => (
         <Button
           key={r.id}
+          variant="ghost"
+          size="sm"
           onClick={() => onQuickReply(r.text)}
-          className="hover:dark:bg-accent bg-accent/20 dark:text-white text-black"
+          className="hover:dark:bg-accent bg-accent/20 dark:text-white text-black rounded-lg font-bold"
         >
           {r.text}
         </Button>
@@ -97,7 +99,7 @@ const QuickReplies = memo(({ replies, onQuickReply }: QuickRepliesProps) => {
   );
 });
 
-QuickReplies.displayName = 'QuickReplies';
+QuickReplies.displayName = "QuickReplies";
 
 // ─── Typing Indicator ───────────────────────
 const TypingIndicator = () => (
@@ -106,19 +108,19 @@ const TypingIndicator = () => (
     animate={{ opacity: 1 }}
     className="flex justify-start"
   >
-    <div className="px-4 py-2 flex gap-1.5 items-center">
+    <div className="px-4 py-2 flex gap-2 items-center rounded-lg bg-slate-900/90 border border-white/5 shadow-sm">
       {[0, 1, 2].map((i) => (
         <motion.span
           key={i}
-          className="w-2 h-2 rounded-full bg-(--accent)"
+          className="w-2.5 h-2.5 rounded-lg bg-accent"
           animate={{
             y: [0, -6, 0],
-            opacity: [0.3, 1, 0.3],
+            opacity: [0.35, 1, 0.35],
           }}
           transition={{
-            duration: 0.6,
+            duration: 0.7,
             repeat: Infinity,
-            delay: i * 0.2,
+            delay: i * 0.18,
           }}
         />
       ))}

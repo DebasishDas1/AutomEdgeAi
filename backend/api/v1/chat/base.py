@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tools import workflow_tools
+from core.graph_cache import graph_cache
 from workflows.registry import registry
 
 logger = structlog.get_logger(__name__)
@@ -145,7 +146,7 @@ async def handle_message_stream(
     _result_container: dict = {"final_output": None, "should_trigger": False}
 
     async def stream() -> AsyncGenerator[str, None]:
-        graph = registry.get_chat_graph(vertical)
+        graph = graph_cache.get(vertical)
 
         messages = list(state_snapshot.get("messages", []))
         messages.append({"role": "user", "content": body.message})
@@ -153,6 +154,7 @@ async def handle_message_stream(
 
         final_output: dict | None = None
         last_emit = asyncio.get_event_loop().time()
+        sent_chunk = False
 
         try:
             async for event in graph.astream_events(current_state, version="v2"):
@@ -170,6 +172,7 @@ async def handle_message_stream(
                 ):
                     chunk = event["data"]["chunk"].content
                     if chunk:
+                        sent_chunk = True
                         yield f"data: {json.dumps({'chunk': chunk})}\n\n"
                         last_emit = asyncio.get_event_loop().time()
 
@@ -180,6 +183,16 @@ async def handle_message_stream(
             logger.error("stream_failed", session_id=body.session_id, error=str(exc))
             yield f"data: {json.dumps({'error': 'stream_error'})}\n\n"
             return
+
+        # Fallback: if the graph did not stream any reply chunks, send the final assistant content.
+        if not sent_chunk and final_output is not None:
+            reply_text = ""
+            for item in reversed(final_output.get("messages", []) or []):
+                if item.get("role") == "assistant" and item.get("content"):
+                    reply_text = str(item["content"]).strip()
+                    break
+            if reply_text:
+                yield f"data: {json.dumps({'chunk': reply_text})}\n\n"
 
         # ── Persist final state with a fresh DB context ───────────────────────
         if final_output is not None:

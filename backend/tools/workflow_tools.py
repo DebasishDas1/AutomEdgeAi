@@ -12,6 +12,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from fastapi import BackgroundTasks
 from core.database import ChatSession, get_db_context
+from core.graph_cache import graph_cache
 from workflows.registry import registry
 
 logger = structlog.get_logger(__name__)
@@ -118,7 +119,7 @@ async def send_message(
         }],
     }
 
-    graph = registry.get_chat_graph(row.vertical)
+    graph = graph_cache.get(row.vertical)
     result = await graph.ainvoke(graph_input)
 
     # 2. WRITE LOCK - Only for the millisecond it takes to update the row

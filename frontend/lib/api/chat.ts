@@ -4,6 +4,8 @@
  * Optimized for consolidated backend endpoints (/api/v1/chat/*).
  */
 
+import { requestCache } from './request-cache';
+
 const assertApiUrl = (): string => {
   const url = process.env.NEXT_PUBLIC_API_URL;
 

@@ -224,29 +224,32 @@ def build_chat_reply_node(
             "",
         )
 
-        # Standardize completion message if session is already complete.
+        # Handle follow-up messages after completion.
         if state.get("is_complete"):
-            # Check if we've already acknowledged the recording in the conversation
-            already_acknowledged = any(
-                "recorded" in m.get("content", "").lower()
+            # Check if we've already sent a final acknowledgment in this session
+            has_final_ack = any(
+                any(phrase in m.get("content", "").lower() 
+                    for phrase in ["interact", "recorded", "lock in", "schedule", "all set"])
                 for m in reversed(state.get("messages", []))
                 if m.get("role") == "assistant"
             )
-            if not already_acknowledged:
+            
+            if not has_final_ack:
+                # First follow-up after completion: brief acknowledgment
                 completion_instr = (
-                    "\n\nSESSION IS COMPLETE. Respond with a short, professional closing. "
-                    "Include: 'Your interaction is recorded', 'Let's schedule a service', and "
-                    "'Let us know what more we can help with' (or natural variations)."
+                    "\n\nBRIEF FOLLOW-UP MODE: The session was completed. "
+                    "Answer the user's follow-up question naturally and helpfully. "
+                    "At the end, briefly remind them they can schedule a service anytime."
                 )
             else:
+                # Subsequent follow-ups: just answer naturally
                 completion_instr = (
-                    "\n\nSession remains complete. Briefly offer further assistance "
-                    "('Let us know what more we can help with') without repeating the recorded interaction."
+                    "\n\nContinued conversation. Answer helpfully and keep responses concise."
                 )
             system_prompt += completion_instr
 
         from workflows.base import build_lc_messages
-        history = build_lc_messages(state)
+        history = build_lc_messages(state, max_messages=10)
 
         reply = await llm.ainvoke(
             [SystemMessage(content=system_prompt)] + history,

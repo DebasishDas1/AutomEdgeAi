@@ -87,13 +87,14 @@ def parse_json(content: str) -> dict | None:
 
 # ── Message helpers ───────────────────────────────────────────────────────────
 
-def build_lc_messages(state: dict) -> list:
+def build_lc_messages(state: dict, max_messages: int = 10) -> list:
     """
     Convert state['messages'] → list of LangChain HumanMessage / AIMessage.
     Skips messages with empty content to avoid sending noise to the LLM.
+    Only the most recent `max_messages` turns are kept to reduce token usage.
     """
     out: list = []
-    for m in state.get("messages", []):
+    for m in state.get("messages", [])[-max_messages:]:
         role = m.get("role")
         content = (m.get("content") or "").strip()
         if not content:

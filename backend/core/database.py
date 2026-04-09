@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, ForeignKey,
+    Boolean, Column, DateTime, ForeignKey, Index,
     Integer, String, Text, select, text
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
@@ -18,11 +18,18 @@ from core.config import settings
 
 engine = create_async_engine(
     settings.DATABASE_URL,
-    pool_size=3,
-    max_overflow=0,
+    pool_size=5,              # Increased from 3 for better concurrency
+    max_overflow=5,           # Allow temporary overflow up to 10 total
     pool_timeout=30,
-    pool_pre_ping=True,
-    pool_recycle=1800,
+    pool_pre_ping=True,       # Verify connections are alive
+    pool_recycle=1800,        # Recycle connections every 30 min
+    echo=False,               # Set to True for SQL debugging
+    connect_args={
+        "server_settings": {
+            "application_name": "automedge_backend",
+            "jit": "off",  # Disable JIT compilation for small queries
+        }
+    }
 )
 
 AsyncSessionLocal = async_sessionmaker(
@@ -45,16 +52,21 @@ class Lead(Base):
 
     id         = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name       = Column(String,  nullable=True)
-    email      = Column(String,  nullable=True)
+    email      = Column(String,  nullable=True, index=True)
     phone      = Column(String,  nullable=True)
     issue      = Column(Text,    nullable=True)
     address    = Column(String,  nullable=True)
-    vertical   = Column(String,  nullable=False)
+    vertical   = Column(String,  nullable=False, index=True)
     score      = Column(String,  nullable=True)   # "hot" | "warm" | "cold"
     summary    = Column(Text,    nullable=True)
     appt_at    = Column(DateTime(timezone=True), nullable=True)
     session_id = Column(String,  nullable=True, index=True)
-    created_at = Column(DateTime(timezone=True), default=_now)
+    created_at = Column(DateTime(timezone=True), default=_now, index=True)
+    
+    __table_args__ = (
+        Index('ix_lead_vertical_created', 'vertical', 'created_at'),
+        Index('ix_lead_email_vertical', 'email', 'vertical'),
+    )
 
 
 class Job(Base):
@@ -75,12 +87,17 @@ class ChatSession(Base):
 
     id          = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     session_id  = Column(String, unique=True, nullable=False, index=True)
-    vertical    = Column(String, nullable=False, default="hvac")
+    vertical    = Column(String, nullable=False, index=True, default="hvac")
     state       = Column(JSONB,  nullable=False, default=dict)
     form_data   = Column(JSONB,  nullable=True,  default=None)
-    is_complete = Column(Boolean, default=False)
-    created_at  = Column(DateTime(timezone=True), default=_now)
-    updated_at  = Column(DateTime(timezone=True), default=_now)
+    is_complete = Column(Boolean, default=False, index=True)
+    created_at  = Column(DateTime(timezone=True), default=_now, index=True)
+    updated_at  = Column(DateTime(timezone=True), default=_now, index=True)
+    
+    __table_args__ = (
+        Index('ix_chat_vertical_created', 'vertical', 'created_at'),
+        Index('ix_chat_is_complete_updated', 'is_complete', 'updated_at'),
+    )
 
 
 class Booking(Base):

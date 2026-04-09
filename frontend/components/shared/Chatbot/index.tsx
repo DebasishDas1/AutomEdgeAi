@@ -79,6 +79,9 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
   const handleFormSubmit = async (data: UserInfo) => {
     setUserInfo(data);
     setIsSubmitting(true);
+    setIsComplete(false);
+    isCompleteRef.current = false;
+
     try {
       const resp = await startChatSession(apiVertical, data);
       setSession(resp.session_id);
@@ -107,8 +110,19 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
   const isCompleteRef = useRef(false);
 
   const handleBotComplete = useCallback(() => {
+    if (isCompleteRef.current) return;
+
     setIsComplete(true);
     isCompleteRef.current = true;
+
+    addBotMsg(
+      "Thanks for all the details! We've got everything we need. Got any last questions, or want to lock in a time?",
+      [
+        { id: "follow-up", text: "One more question…" },
+        { id: "appointment", text: "Book me an appointment" },
+        { id: "more-info", text: "More info needed" },
+      ],
+    );
 
     toast.success("Your inquiry has been successfully received by our team.", {
       description: "We've received your message and will follow up shortly.",
@@ -117,14 +131,14 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
       className:
         "bg-white dark:bg-slate-900 border-2 border-emerald-500/20 rounded-2xl shadow-xl",
     });
-  }, []);
+  }, [addBotMsg]);
 
   const handleSend = useCallback(
     async (textOverride?: string) => {
       const msg = (textOverride ?? "").trim();
       if (!msg) return;
 
-      if (isCompleteRef.current || isTypingRef.current) return;
+      if (isTypingRef.current) return;
 
       // optimistic push
       setMessages((prev) => [
@@ -204,7 +218,7 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ type: "spring", stiffness: 350, damping: 25 }}
-            className="fixed bottom-28 right-8 w-[calc(100vw-64px)] sm:w-102.5 h-160 max-h-[calc(100vh-140px)] rounded-4xl shadow-[0_32px_80px_-16px_rgba(0,0,0,0.5)] z-50 flex flex-col overflow-hidden border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950"
+            className="fixed bottom-28 right-8 w-[calc(100vw-64px)] sm:w-105 h-[min(640px,calc(100vh-96px))] max-h-[calc(100vh-96px)] rounded-[2.5rem] shadow-[0_36px_120px_-30px_rgba(15,23,42,0.7)] z-50 flex flex-col overflow-hidden border border-slate-200/70 dark:border-white/10 bg-white/95 backdrop-blur-xl dark:bg-slate-950/95"
           >
             <Header
               title={cfg.title}
@@ -236,6 +250,15 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
                     animate={{ opacity: 1, scale: 1 }}
                     className="flex-1 flex flex-col overflow-hidden"
                   >
+                    {isComplete && (
+                      <div className="px-5 py-4 border-b border-slate-200/80 dark:border-white/10 bg-emerald-500/10 dark:bg-emerald-500/10 text-slate-900 dark:text-emerald-100">
+                        <div className="rounded-3xl border border-emerald-500/20 bg-white/90 dark:bg-slate-950/95 px-4 py-3 shadow-sm text-[13px] font-medium leading-6">
+                          ✨ All set! Your details are saved. Ask a follow-up,
+                          request a quick estimate, or lock in your appointment.
+                        </div>
+                      </div>
+                    )}
+
                     <MessageList
                       messages={messages}
                       isTyping={isTyping}

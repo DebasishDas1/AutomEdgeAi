@@ -1,4 +1,5 @@
 "use client";
+
 import { motion } from "framer-motion";
 import { Send, Sparkles } from "lucide-react";
 import { RefObject } from "react";
@@ -23,7 +24,7 @@ export function ChatInput({
   onSend,
 }: ChatInputProps) {
   return (
-    <div className="px-6 py-5 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-white/5 shrink-0">
+    <div className="px-6 py-5 bg-slate-100 dark:bg-slate-950/95 border-t border-slate-200/70 dark:border-white/10 shrink-0 backdrop-blur-xl">
       <div className="flex items-center gap-3">
         <div className="flex-1 relative group">
           <input
@@ -33,42 +34,41 @@ export function ChatInput({
             onChange={(e) => onInputChange(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && onSend(input)}
             placeholder={
-              isComplete ? "Session Finalized" : "Compose your message…"
+              isComplete
+                ? "Ask anything or type 'schedule'…"
+                : "Compose your message…"
             }
-            disabled={isComplete}
-            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 focus:border-emerald-500/30 focus:ring-4 focus:ring-emerald-500/5 rounded-2xl py-4 pl-5 pr-12 text-[14px] font-medium text-slate-700 dark:text-white transition-all duration-300 outline-none disabled:opacity-50 placeholder:text-slate-400 dark:placeholder:text-slate-500"
+            disabled={isTyping}
+            className="w-full bg-white/90 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 rounded-full py-4 pl-5 pr-14 text-[14px] font-medium text-slate-700 dark:text-slate-100 transition-all duration-300 outline-none disabled:opacity-50 placeholder:text-slate-400 dark:placeholder:text-slate-500"
           />
           <motion.div
             animate={{ opacity: input ? 1 : 0.4 }}
             className="absolute right-4 top-1/2 -translate-y-1/2"
           >
-            <Sparkles size={16} className="text-emerald-500/60" />
+            <Sparkles size={16} className="text-emerald-500/70" />
           </motion.div>
         </div>
         <motion.button
           whileHover={{
             scale: 1.05,
-            boxShadow: `0 10px 20px -5px ${accentColor}44`,
+            boxShadow: `0 14px 28px -18px ${accentColor}99`,
           }}
-          whileTap={{ scale: 0.9 }}
+          whileTap={{ scale: 0.96 }}
           onClick={() => onSend(input)}
-          disabled={!input.trim() || isComplete || isTyping}
-          className="w-13 h-13 rounded-2xl flex items-center justify-center transition-all duration-300 disabled:opacity-30 disabled:grayscale group"
+          disabled={!input.trim() || isTyping}
+          className="w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 disabled:opacity-30 disabled:grayscale"
           style={{ backgroundColor: accentColor }}
+          aria-label="Send message"
         >
           <Send
             size={20}
             strokeWidth={2}
-            className="text-white group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"
+            className="text-white"
           />
         </motion.button>
       </div>
-      <div className="mt-3.5 flex items-center justify-center gap-2">
-        <div className="w-8 h-px bg-slate-200 dark:bg-white/10" />
-        <p className="text-[9px] font-black tracking-[0.2em] uppercase text-slate-400 dark:text-slate-500">
-          Automedge Intelligence
-        </p>
-        <div className="w-8 h-px bg-slate-200 dark:bg-white/10" />
+      <div className="mt-4 flex items-center justify-center text-[11px] text-slate-500 dark:text-slate-400">
+        <span>Powered by Automedge AI</span>
       </div>
     </div>
   );

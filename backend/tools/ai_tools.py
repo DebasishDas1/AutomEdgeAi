@@ -75,6 +75,21 @@ hot=urgent+contact info, warm=interested+incomplete, cold=browsing, drop=spam.
 
 class AITools:
 
+    def _trim_transcript(self, transcript: str, max_chars: int = 1800) -> str:
+        """Keep only the most recent transcript content under the max char limit."""
+        if len(transcript) <= max_chars:
+            return transcript
+
+        lines = transcript.splitlines()
+        trimmed: list[str] = []
+        total = 0
+        for line in reversed(lines):
+            if total + len(line) + 1 > max_chars:
+                break
+            trimmed.append(line)
+            total += len(line) + 1
+        return "\n".join(reversed(trimmed))
+
     async def _invoke_extract(self, system: str, message: str, service: str) -> dict | None:
         """
         OPTIMIZATION: all extract_*_fields methods were identical except for
@@ -117,14 +132,15 @@ class AITools:
 
     async def classify_conversation(self, messages: list[dict]) -> dict | None:
         log = logger.bind(service="classify_conversation")
-        transcript = full_transcript({"messages": messages})
+        trimmed_messages = messages[-12:]
+        transcript = full_transcript({"messages": trimmed_messages})
+        transcript = self._trim_transcript(transcript, max_chars=1800)
         if not transcript.strip():
             return None
         try:
             resp = await llm.ainvoke(
                 [SystemMessage(content=_CLASSIFY_SYSTEM),
                  HumanMessage(content=transcript)],
-                full_history=True,
             )
             data = parse_json(resp.content)
             if data:
