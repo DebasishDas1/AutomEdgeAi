@@ -26,7 +26,7 @@ export default function useTypewriter(words: string[], speed = 90, pause = 1500)
     }, deleting ? speed / 2 : speed);
 
     return () => clearTimeout(timeout);
-  }, [sub, deleting, index]);
+  }, [sub, deleting, index, speed, pause, words]);
 
   return sub;
 }

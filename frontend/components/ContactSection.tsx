@@ -67,7 +67,7 @@ export function ContactSection() {
         <div className="space-y-12 text-center lg:text-left">
           <div className="flex flex-col items-center lg:items-start">
             <h2 className="text-5xl md:text-7xl font-outfit font-extrabold mb-6 tracking-tighter leading-none text-foreground">
-              Let's talk scale.
+              Let&apos;s talk scale.
             </h2>
             <p className="text-xl md:text-2xl text-muted-foreground font-sans font-medium tracking-tight max-w-xl">
               Ready to automate your inquiries? Fill out the form and our team
@@ -187,7 +187,7 @@ export function ContactSection() {
 
               {status === "success" && (
                 <p className="text-accent font-bold text-lg text-center lg:text-left">
-                  ✓ Successfully sent. We'll be in touch!
+                  ✓ Successfully sent. We&apos;ll be in touch!
                 </p>
               )}
               {status === "error" && (

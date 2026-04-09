@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, RefreshCcw, Home } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
@@ -13,23 +12,17 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const [mounted, setMounted] = useState(false);
   const { goHome } = useDomainNavigation();
 
-  useEffect(() => {
-    // Log the error to an error reporting service
-    console.error(error);
-    setMounted(true);
-  }, [error]);
-
-  if (!mounted) return null;
+  // Log the error to an error reporting service
+  console.error(error);
 
   return (
     <main className="min-h-screen flex flex-col relative bg-background">
       <Navbar />
 
       <div className="flex-1 flex flex-col items-center justify-center p-6 text-center relative z-10">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-red-500/5 rounded-full blur-[100px] -z-10 pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-125 h-125 bg-red-500/5 rounded-full blur-[100px] -z-10 pointer-events-none" />
 
         <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mb-8 border border-red-500/20">
           <AlertCircle className="w-10 h-10 text-red-500" />

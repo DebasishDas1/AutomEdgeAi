@@ -19,7 +19,7 @@ const ANIM_ENTRANCE = {
 const STAGGER_CHILD = (delay: number) => ({
   initial: { opacity: 1, y: 10 }, // Start opaque for LCP
   animate: { opacity: 1, y: 0 },
-  transition: { delay, duration: 0.4, ease: "easeOut" as any },
+  transition: { delay, duration: 0.4, ease: [0.22, 1, 0.36, 1] as const },
 });
 
 export const HeroBlock = memo(function HeroBlock() {

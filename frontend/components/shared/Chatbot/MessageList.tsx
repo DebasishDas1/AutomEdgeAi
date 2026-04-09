@@ -12,8 +12,19 @@ interface MessageListProps {
   onQuickReply: (text: string) => void;
 }
 
+interface MessageBubbleProps {
+  msg: Message;
+  isLast: boolean;
+  isTyping: boolean;
+}
+
+interface QuickRepliesProps {
+  replies?: { id: string; text: string }[];
+  onQuickReply: (text: string) => void;
+}
+
 // ─── Message Bubble ─────────────────────────
-const MessageBubble = memo(({ msg, isLast, isTyping }: any) => {
+const MessageBubble = memo(({ msg, isLast, isTyping }: MessageBubbleProps) => {
   const isUser = msg.sender === "user";
 
   const entrance = isUser
@@ -61,8 +72,10 @@ const MessageBubble = memo(({ msg, isLast, isTyping }: any) => {
   );
 });
 
+MessageBubble.displayName = 'MessageBubble';
+
 // ─── Quick Replies ─────────────────────────
-const QuickReplies = memo(({ replies, onQuickReply }: any) => {
+const QuickReplies = memo(({ replies, onQuickReply }: QuickRepliesProps) => {
   if (!replies?.length) return null;
 
   return (
@@ -71,7 +84,7 @@ const QuickReplies = memo(({ replies, onQuickReply }: any) => {
       animate={{ opacity: 1, y: 0 }}
       className="flex flex-wrap gap-2"
     >
-      {replies.map((r: any) => (
+      {replies.map((r: { id: string; text: string }) => (
         <Button
           key={r.id}
           onClick={() => onQuickReply(r.text)}
@@ -83,6 +96,8 @@ const QuickReplies = memo(({ replies, onQuickReply }: any) => {
     </motion.div>
   );
 });
+
+QuickReplies.displayName = 'QuickReplies';
 
 // ─── Typing Indicator ───────────────────────
 const TypingIndicator = () => (

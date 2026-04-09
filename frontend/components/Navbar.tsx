@@ -37,7 +37,7 @@ function NavLinks({
   return (
     <div className={`flex flex-col lg:flex-row gap-6 ${className}`}>
       {navItems.map((item) => (
-        <Wrapper key={item.title} asChild={closeOnClick}>
+        <Wrapper key={item.title} {...(closeOnClick ? { asChild: true } : {})}>
           <Link
             href={item.href}
             className="font-semibold hover:text-accent lg:py-4"
@@ -59,7 +59,7 @@ export function Navbar() {
         {/* Logo */}
         <button
           onClick={goHome}
-          className="relative w-[140px] h-[40px] flex items-center"
+          className="relative w-35 h-10 flex items-center"
         >
           <Image
             src="/AutomEdge-logo-light.png"

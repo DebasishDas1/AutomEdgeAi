@@ -83,7 +83,7 @@ export const RoiCalculator = ({
           <span className="label text-accent uppercase tracking-widest font-bold text-xs">ROI Calculator</span>
         </div>
         <h2 className="text-4xl md:text-6xl font-outfit tracking-tight leading-tight mb-4 text-balance">
-          What's this worth to <br className="hidden md:block" />
+          What&apos;s this worth to <br className="hidden md:block" />
           <span className="text-accent underline decoration-accent/20 decoration-8 underline-offset-4">your business?</span>
         </h2>
         <p className="text-muted-foreground text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">

@@ -25,8 +25,8 @@ export default function AdsPage() {
       <Navbar />
 
       {/* Decorative Backgrounds */}
-      <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-accent/10 rounded-full blur-[150px] -z-10 pointer-events-none" />
-      <div className="absolute top-[40%] left-0 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[150px] -z-10 pointer-events-none" />
+      <div className="absolute top-0 right-0 w-200 h-200 bg-accent/10 rounded-full blur-[150px] -z-10 pointer-events-none" />
+      <div className="absolute top-[40%] left-0 w-150 h-150 bg-primary/10 rounded-full blur-[150px] -z-10 pointer-events-none" />
 
       {/* Hero Section */}
       <section className="pt-40 pb-20 px-6 max-w-7xl mx-auto w-full text-center relative z-10">
@@ -130,7 +130,7 @@ export default function AdsPage() {
               <span className="text-accent">zero complexity.</span>
             </h2>
             <p className="text-xl text-muted-foreground leading-relaxed">
-              You don't need a marketing degree to run successful campaigns. Our
+              You don&apos;t need a marketing degree to run successful campaigns. Our
               AI-driven platform handles the heavy lifting of bidding and
               optimization so you can focus on your business.
             </p>

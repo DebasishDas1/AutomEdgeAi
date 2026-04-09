@@ -56,7 +56,7 @@ export const DemoPageCalendar = ({
 
     const generated: Date[] = [];
     let start = setHours(setMinutes(selectedDate, 0), 9);
-    let end = setHours(setMinutes(selectedDate, 0), 18);
+    const end = setHours(setMinutes(selectedDate, 0), 18);
 
     if (isToday(selectedDate)) {
       const now = new Date();
@@ -66,9 +66,6 @@ export const DemoPageCalendar = ({
         start = setHours(setMinutes(selectedDate, 0), 9);
       }
     }
-
-    // Deterministic random (based on date) so it doesn't flicker
-    const dateSeed = selectedDate.getDate() + selectedDate.getMonth();
 
     while (start < end && generated.length < 12) {
       if (start > new Date()) {
@@ -123,8 +120,8 @@ export const DemoPageCalendar = ({
       className="relative py-28 px-6 max-w-6xl mx-auto scroll-mt-24 w-full flex flex-col items-center overflow-hidden"
     >
       {/* Background Blobs */}
-      <div className="absolute top-1/2 left-0 w-[600px] h-[600px] bg-accent/10 rounded-full blur-[140px] -translate-y-1/2 -z-10 pointer-events-none animate-pulse" />
-      <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-primary/5 rounded-full blur-[120px] -z-10 pointer-events-none animate-pulse delay-1000" />
+      <div className="absolute top-1/2 left-0 w-150 h-150 bg-accent/10 rounded-full blur-[140px] -translate-y-1/2 -z-10 pointer-events-none animate-pulse" />
+      <div className="absolute bottom-0 right-0 w-100 h-100 bg-primary/5 rounded-full blur-[120px] -z-10 pointer-events-none animate-pulse delay-1000" />
 
       <CalendarHeader
         title={title}

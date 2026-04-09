@@ -17,8 +17,8 @@ export default function TermsOfServicePage() {
 
       <div className="flex-1 pt-32 pb-24 px-6 max-w-4xl mx-auto w-full relative z-10">
         {/* Premium Background Blobs */}
-        <div className="absolute top-0 right-1/4 w-[500px] h-[500px] bg-accent/10 rounded-full blur-[120px] -z-10 pointer-events-none" />
-        <div className="absolute top-1/2 left-1/4 w-[400px] h-[400px] bg-primary/10 rounded-full blur-[100px] -z-10 pointer-events-none" />
+        <div className="absolute top-0 right-1/4 w-125 h-125 bg-accent/10 rounded-full blur-[120px] -z-10 pointer-events-none" />
+        <div className="absolute top-1/2 left-1/4 w-100 h-100 bg-primary/10 rounded-full blur-[100px] -z-10 pointer-events-none" />
 
         <div className="text-center mb-16">
           <h1 className="text-5xl md:text-7xl font-outfit font-black tracking-tighter mb-4">
@@ -34,7 +34,7 @@ export default function TermsOfServicePage() {
             1. Agreement to Terms
           </h2>
           <p>
-            By accessing our website at automedge.com (the "Site") or using any
+            By accessing our website at automedge.com (the &quot;Site&quot;) or using any
             of our services, you agree to be bound by these Terms of Service. If
             you do not agree with any part of these terms, you may not access
             our services.
@@ -46,7 +46,7 @@ export default function TermsOfServicePage() {
           <p>
             Automedge provides artificial intelligence lead automation,
             scheduling, and communication software for service-based businesses
-            (the "Service"). We reserve the right to modify, suspend, or
+            (the &quot;Service&quot;). We reserve the right to modify, suspend, or
             discontinue the Service (in whole or in part) at any time, with or
             without notice.
           </p>
@@ -79,7 +79,7 @@ export default function TermsOfServicePage() {
             </li>
             <li>
               To transmit, or procure the sending of, any advertising or
-              promotional material without the recipient's prior consent.
+              promotional material without the recipient&apos;s prior consent.
             </li>
             <li>
               To impersonate or attempt to impersonate Automedge, an Automedge
@@ -87,7 +87,7 @@ export default function TermsOfServicePage() {
             </li>
             <li>
               In any manner that could disable, overburden, damage, or impair
-              the site or interfere with any other party's use of the Service.
+              the site or interfere with any other party&apos;s use of the Service.
             </li>
           </ul>
 

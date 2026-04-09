@@ -15,7 +15,7 @@ export default function NotFound() {
       
       <div className="flex-1 flex flex-col items-center justify-center p-6 text-center relative z-10 my-32">
         {/* Background blobs */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-accent/5 rounded-full blur-[120px] -z-10 pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-150 h-150 bg-accent/5 rounded-full blur-[120px] -z-10 pointer-events-none" />
         
         <div className="w-24 h-24 rounded-full bg-muted/50 flex items-center justify-center mb-8 border-2 border-border">
           <Search className="w-10 h-10 text-muted-foreground" />
@@ -30,8 +30,8 @@ export default function NotFound() {
         </h2>
         
         <p className="text-lg text-muted-foreground max-w-md mx-auto mb-10 leading-relaxed">
-          The page you're trying to reach doesn't exist or has been moved. 
-          Let's get you back to booking jobs.
+            The page you&apos;re trying to reach doesn&apos;t exist or has been moved. 
+          Let&apos;s get you back to booking jobs.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">

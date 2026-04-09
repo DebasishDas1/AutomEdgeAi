@@ -10,8 +10,9 @@ import {
 import { Mic, PhoneOff, PhoneCall, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion as m } from "framer-motion";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createWebCall } from "@/lib/api/retell";
+import type { RetellWebClient } from "retell-client-js-sdk";
 
 // FIX: Removed dead module-level `let RetellWebClient: any` declaration.
 // It was declared but never assigned here — the real import happens inside
@@ -39,8 +40,8 @@ export const CallAgent = ({ type }: CallAgentProp) => {
   // `retellClientRef` holds the live client once startCall() resolves.
   // `pendingClientRef` holds the client the moment it is constructed,
   // so handleStop can abort it before startCall() returns.
-  const retellClientRef = useRef<any>(null);
-  const pendingClientRef = useRef<any>(null);
+  const retellClientRef = useRef<RetellWebClient | null>(null);
+  const pendingClientRef = useRef<RetellWebClient | null>(null);
 
   useEffect(() => {
     let isCancelled = false;
@@ -113,7 +114,7 @@ export const CallAgent = ({ type }: CallAgentProp) => {
     };
   }, [open, type]);
 
-  const handleStop = () => {
+  const handleStop = useCallback(() => {
     // FIX: Original only checked retellClientRef, which is only assigned after
     // call_started fires. If the user clicks End Call while we are still
     // awaiting startCall() (status === "connecting"), the client existed in
@@ -124,7 +125,7 @@ export const CallAgent = ({ type }: CallAgentProp) => {
     retellClientRef.current = null;
     pendingClientRef.current = null;
     setOpen(false);
-  };
+  }, []);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -132,6 +133,8 @@ export const CallAgent = ({ type }: CallAgentProp) => {
         <m.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
+          aria-label="Open AI call agent"
+          style={{ willChange: "transform", backfaceVisibility: "hidden" }}
           className="
             fixed bottom-28 right-8
             w-16 h-16 rounded-full
@@ -142,8 +145,9 @@ export const CallAgent = ({ type }: CallAgentProp) => {
           "
         >
           <m.div
-            animate={{ scale: [1, 1.2], opacity: [0.1, 0] }}
-            transition={{ duration: 2, repeat: Infinity }}
+            animate={{ scale: [1, 1.15], opacity: [0.15, 0] }}
+            transition={{ duration: 2, repeat: Infinity, type: "tween" }}
+            style={{ willChange: "transform", backfaceVisibility: "hidden" }}
             className="absolute inset-0 bg-white rounded-full"
           />
           <Mic size={28} className="relative z-10 text-white" />
@@ -153,8 +157,8 @@ export const CallAgent = ({ type }: CallAgentProp) => {
       <DialogContent
         className="
           w-[calc(100%-2.5rem)] sm:max-w-md
-          h-auto min-h-[380px] sm:min-h-[420px]
-          rounded-[32px] sm:rounded-[40px]
+          h-auto min-h-95 sm:min-h-105
+          rounded-4xl sm:rounded-[40px]
           border border-white/10
           backdrop-blur-3xl bg-background/80
           shadow-[0_40px_100px_-20px_rgba(0,0,0,0.55)]
@@ -185,17 +189,19 @@ export const CallAgent = ({ type }: CallAgentProp) => {
         </DialogHeader>
 
         {/* Center Mic Visualizer */}
-        <div className="relative flex items-center justify-center flex-1 w-full my-8">
+        <div className="relative flex items-center justify-center flex-1 w-full my-8 min-h-50">
           <m.div
             animate={{
-              scale: status === "active" ? [1, 1.3, 1] : [1, 1.15, 1],
-              opacity: status === "active" ? [0.3, 0.6, 0.3] : [0.2, 0.35, 0.2],
+              scale: status === "active" ? [1, 1.25, 1] : [1, 1.1, 1],
+              opacity: status === "active" ? [0.3, 0.5, 0.3] : [0.2, 0.3, 0.2],
             }}
             transition={{
-              duration: status === "active" ? 2 : 4,
+              duration: status === "active" ? 2.5 : 4.5,
               repeat: Infinity,
               ease: "easeInOut",
+              type: "tween",
             }}
+            style={{ willChange: "transform", backfaceVisibility: "hidden" }}
             className={`absolute w-40 h-40 ${status === "error" ? "bg-destructive/20" : "bg-accent/20"} rounded-full blur-[60px]`}
           />
 
@@ -203,13 +209,15 @@ export const CallAgent = ({ type }: CallAgentProp) => {
             [1, 2, 3].map((i) => (
               <m.div
                 key={i}
-                animate={{ scale: [1, 2.5], opacity: [0.4, 0] }}
+                animate={{ scale: [1, 2.2], opacity: [0.3, 0] }}
                 transition={{
-                  duration: status === "active" ? 2 : 3,
+                  duration: status === "active" ? 2.5 : 3.5,
                   repeat: Infinity,
-                  delay: i * 0.6,
+                  delay: i * 0.5,
                   ease: "easeOut",
+                  type: "tween",
                 }}
+                style={{ willChange: "transform", backfaceVisibility: "hidden" }}
                 className="absolute w-24 h-24 border border-accent/40 rounded-full"
               />
             ))}
@@ -217,10 +225,11 @@ export const CallAgent = ({ type }: CallAgentProp) => {
           <m.div
             animate={
               status === "active"
-                ? { scale: [1, 1.1, 1] }
-                : { scale: [1, 1.05, 1] }
+                ? { scale: [1, 1.08, 1] }
+                : { scale: [1, 1.03, 1] }
             }
-            transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", type: "tween" }}
+            style={{ willChange: "transform", backfaceVisibility: "hidden" }}
             className={`
               relative z-10 w-24 h-24 rounded-full
               ${status === "error" ? "bg-destructive" : "bg-accent"}
@@ -229,9 +238,9 @@ export const CallAgent = ({ type }: CallAgentProp) => {
             `}
           >
             {status === "connecting" ? (
-              <Loader2 size={42} className="text-white animate-spin" />
+              <Loader2 size={42} className="text-white [animation-duration:1.5s]" />
             ) : status === "active" ? (
-              <PhoneCall size={42} className="text-white animate-pulse" />
+              <PhoneCall size={42} className="text-white" />
             ) : status === "error" ? (
               <Mic size={42} className="text-white opacity-50" />
             ) : (
