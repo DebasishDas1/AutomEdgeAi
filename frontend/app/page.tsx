@@ -1,6 +1,5 @@
 import dynamic from "next/dynamic";
 import { Navbar } from "@/components/Navbar";
-import { ModernHero } from "@/components/ModernHero";
 import type { Metadata } from "next";
 import { HeroBlock } from "@/components/ui/hero-block-shadcnui";
 
@@ -8,7 +7,7 @@ import { HeroBlock } from "@/components/ui/hero-block-shadcnui";
 // Navbar and ModernHero remain static for immediate LCP
 
 // Below the fold - Dynamic
-const placeholder = () => <div className="min-h-[300px] bg-background" />;
+const placeholder = () => <div className="min-h-75 bg-background" />;
 
 const ProblemSection = dynamic(
   () => import("@/components/ProblemSection").then((mod) => mod.ProblemSection),

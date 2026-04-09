@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Zap,
   Wind,
   Droplet,
   Bug,
@@ -10,6 +9,7 @@ import {
   MousePointer2,
   Database,
   ArrowRight,
+  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -18,6 +18,15 @@ import { memo } from "react";
 // ─────────────────────────────────────────
 // n8n Style Graph CONFIG
 // ─────────────────────────────────────────
+interface Demo {
+  id: string;
+  title: string;
+  description: string;
+  href: string;
+  theme: string;
+  icon: LucideIcon;
+}
+
 const DEMOS = [
   {
     id: "hvac",
@@ -58,12 +67,8 @@ const DEMOS = [
 // ─────────────────────────────────────────
 const BezierEdge = ({
   d,
-  delay = 0,
-  duration = 3,
 }: {
   d: string;
-  delay?: number;
-  duration?: number;
 }) => (
   <>
     <path
@@ -86,7 +91,7 @@ const BezierEdge = ({
 // ─────────────────────────────────────────
 // Hyper-Premium Graph Node (DemoCard)
 // ─────────────────────────────────────────
-const DemoCard = memo(({ index, demo }: any) => {
+const DemoCard = memo(({ demo }: { demo: Demo }) => {
   const { title, description, href, theme } = demo;
   const Icon = demo.icon;
 
@@ -104,7 +109,7 @@ const DemoCard = memo(({ index, demo }: any) => {
     <Link
       href={href}
       scroll
-      className="group block relative z-10 w-full lg:max-w-[340px]"
+      className="group block relative z-10 w-full lg:max-w-85"
     >
       <div className="h-full relative">
         <div className="absolute -inset-1 bg-accent/5 rounded-4xl blur-xl opacity-0 group-hover:opacity-100 transition-all duration-700 -z-10" />
@@ -130,7 +135,7 @@ const DemoCard = memo(({ index, demo }: any) => {
             <h3 className="text-2xl font-outfit font-black tracking-tight text-foreground truncate">
               {title}
             </h3>
-            <p className="text-sm md:text-base text-muted-foreground line-clamp-2 opacity-70 leading-relaxed font-medium max-w-[240px]">
+            <p className="text-sm md:text-base text-muted-foreground line-clamp-2 opacity-70 leading-relaxed font-medium max-w-60">
               {description}
             </p>
           </div>
@@ -146,6 +151,8 @@ const DemoCard = memo(({ index, demo }: any) => {
     </Link>
   );
 });
+
+DemoCard.displayName = 'DemoCard';
 
 // ─────────────────────────────────────────
 // Hyper-Premium Section Layout
@@ -242,7 +249,7 @@ export function DemoWorkflowSection() {
 
           {/* Corrected SVG ViewBox and Paths */}
           <svg
-            className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[800px] pointer-events-none -z-10"
+            className="absolute top-0 left-1/2 -translate-x-1/2 w-150 h-200 pointer-events-none -z-10"
             viewBox="0 0 100 800"
             preserveAspectRatio="xMidYMid slice"
           >
@@ -264,15 +271,15 @@ export function DemoWorkflowSection() {
             <BezierEdge d="M 50 -160 L 50 40" />
 
             {/* Hub to Grid (Branching) */}
-            <BezierEdge d="M 50 160 Q 50 250, 25 320" delay={0.2} />
-            <BezierEdge d="M 50 160 Q 50 250, 75 320" delay={0.3} />
+            <BezierEdge d="M 50 160 Q 50 250, 25 320" />
+            <BezierEdge d="M 50 160 Q 50 250, 75 320" />
           </svg>
         </div>
         {/* Industry Matrix */}
         <div className="w-full relative -mt-20 flex justify-center px-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-16 md:gap-x-24 gap-y-16 md:gap-y-24 max-w-6xl mx-auto">
-            {DEMOS.map((demo, index) => (
-              <DemoCard key={demo.id} demo={demo} index={index} />
+            {DEMOS.map((demo) => (
+              <DemoCard key={demo.id} demo={demo} />
             ))}
           </div>
         </div>

@@ -27,11 +27,12 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
     phone: "",
   });
   const [messages, setMessages] = useState<Message[]>([]);
-  const [sessionId, setSessionId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [isComplete, setIsComplete] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [isComplete, setIsComplete] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -101,26 +102,13 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
     }
   };
 
-  // ── Reset Chat ─────────────────────────────────────────────────────────────
-  const resetChat = useCallback(() => {
-    setMessages([]);
-    setSessionId(null);
-    sessionIdRef.current = null;
-    isTypingRef.current = false;
-    isCompleteRef.current = false;
-    setUserInfo({ name: "", email: "", phone: "" });
-    setStep("form");
-    setIsComplete(false);
-    sessionInit.current = false;
-  }, []);
-
   // ── Send message ───────────────────────────────────────────────────────────
   const isTypingRef = useRef(false);
   const isCompleteRef = useRef(false);
 
   const handleBotComplete = useCallback(() => {
-    // setIsComplete(true);
-    // isCompleteRef.current = true;
+    setIsComplete(true);
+    isCompleteRef.current = true;
 
     toast.success("Your inquiry has been successfully received by our team.", {
       description: "We've received your message and will follow up shortly.",
@@ -184,8 +172,8 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
             }
           },
         );
-      } catch (err: any) {
-        const status = err?.status;
+      } catch (err: unknown) {
+        const status = (err as { status?: number })?.status;
 
         if (status === 408) addBotMsg("Server is warming up… try again soon.");
         else if (status === 404)
@@ -198,7 +186,7 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
         isTypingRef.current = false;
       }
     },
-    [apiVertical, addBotMsg, handleBotComplete],
+    [addBotMsg, handleBotComplete],
   );
 
   return (
@@ -216,7 +204,7 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ type: "spring", stiffness: 350, damping: 25 }}
-            className="fixed bottom-28 right-8 w-[calc(100vw-64px)] sm:w-[410px] h-[640px] max-h-[calc(100vh-140px)] rounded-[32px] shadow-[0_32px_80px_-16px_rgba(0,0,0,0.5)] z-50 flex flex-col overflow-hidden border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950"
+            className="fixed bottom-28 right-8 w-[calc(100vw-64px)] sm:w-102.5 h-160 max-h-[calc(100vh-140px)] rounded-4xl shadow-[0_32px_80px_-16px_rgba(0,0,0,0.5)] z-50 flex flex-col overflow-hidden border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950"
           >
             <Header
               title={cfg.title}
@@ -239,7 +227,6 @@ export function Chatbot({ vertical = "general" }: ChatbotProps) {
                   <LeadForm
                     userInfo={userInfo}
                     isSubmitting={isSubmitting}
-                    accentColor={accentColor}
                     onFormComplete={handleFormSubmit}
                   />
                 ) : (

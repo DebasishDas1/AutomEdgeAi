@@ -17,8 +17,8 @@ export default function PrivacyPolicyPage() {
 
       <div className="flex-1 pt-32 pb-24 px-6 max-w-4xl mx-auto w-full relative z-10">
         {/* Premium Background Blobs */}
-        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-accent/10 rounded-full blur-[120px] -z-10 pointer-events-none" />
-        <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-primary/10 rounded-full blur-[100px] -z-10 pointer-events-none" />
+        <div className="absolute top-0 left-1/4 w-125 h-125 bg-accent/10 rounded-full blur-[120px] -z-10 pointer-events-none" />
+        <div className="absolute bottom-1/4 right-1/4 w-100 h-100 bg-primary/10 rounded-full blur-[100px] -z-10 pointer-events-none" />
 
         <div className="text-center mb-16">
           <h1 className="text-5xl md:text-7xl font-outfit font-black tracking-tighter mb-4">
@@ -34,7 +34,7 @@ export default function PrivacyPolicyPage() {
             1. Introduction
           </h2>
           <p>
-            Welcome to Automedge ("we," "our," or "us"). We are committed to
+            Welcome to Automedge (&quot;we,&quot; &quot;our,&quot; or &quot;us&quot;). We are committed to
             protecting your personal information and your right to privacy. If
             you have any questions or concerns about this privacy notice or our
             practices with regard to your personal information, please contact
@@ -48,8 +48,8 @@ export default function PrivacyPolicyPage() {
             .
           </p>
           <p>
-            When you visit our website https://automedge.com (the "Website"),
-            and more generally, use any of our services (the "Services", which
+            When you visit our website https://automedge.com (the &quot;Website&quot;),
+            and more generally, use any of our services (the &quot;Services&quot;, which
             include the Website), we appreciate that you are trusting us with
             your personal information. We take your privacy very seriously. In
             this privacy notice, we seek to explain to you in the clearest way
@@ -164,7 +164,7 @@ export default function PrivacyPolicyPage() {
           </h2>
           <p>
             We may update this privacy notice from time to time. The updated
-            version will be indicated by an updated "Revised" date and the
+            version will be indicated by an updated &quot;Revised&quot; date and the
             updated version will be effective as soon as it is accessible. We
             encourage you to review this privacy notice frequently to be
             informed of how we are protecting your information.

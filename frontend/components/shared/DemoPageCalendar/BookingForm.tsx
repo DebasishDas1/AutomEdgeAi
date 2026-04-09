@@ -6,7 +6,7 @@ import { format } from "date-fns";
 type BookingFormProps = {
   selectedSlot: Date | null;
   formData: { name: string; email: string; website: string; teamSize: string };
-  setFormData: (data: any) => void;
+  setFormData: (data: { name: string; email: string; website: string; teamSize: string }) => void;
   onConfirm: (e: React.FormEvent) => void;
   onBack: () => void;
   isSubmitting?: boolean;

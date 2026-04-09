@@ -25,14 +25,12 @@ type LeadFormData = z.infer<typeof leadSchema>;
 interface LeadFormProps {
   userInfo: UserInfo;
   isSubmitting: boolean;
-  accentColor: string;
   onFormComplete: (data: LeadFormData) => void;
 }
 
 export function LeadForm({
   userInfo,
   isSubmitting,
-  accentColor,
   onFormComplete,
 }: LeadFormProps) {
   const {
@@ -46,6 +44,7 @@ export function LeadForm({
     mode: "onChange",
   });
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const values = watch();
 
   const fields = [

@@ -16,8 +16,8 @@ export default function ContactPage() {
 
       <div className="flex-1 pt-32 pb-24 px-6 max-w-4xl mx-auto w-full relative z-10">
         {/* Premium Background Blobs */}
-        <div className="absolute top-0 right-1/3 w-[600px] h-[600px] bg-accent/5 rounded-full blur-[120px] -z-10 pointer-events-none" />
-        <div className="absolute bottom-0 left-1/3 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[100px] -z-10 pointer-events-none" />
+        <div className="absolute top-0 right-1/3 w-150 h-150 bg-accent/5 rounded-full blur-[120px] -z-10 pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 w-125 h-125 bg-primary/5 rounded-full blur-[100px] -z-10 pointer-events-none" />
 
         <div className="text-center mb-16">
           <h1 className="text-5xl md:text-7xl font-outfit font-black tracking-tighter mb-6">
@@ -25,7 +25,7 @@ export default function ContactPage() {
           </h1>
           <p className="text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto font-sans">
             Have a question about Automedge, need help with your account, or
-            just want to chat about AI automation? We'd love to hear from you.
+            just want to chat about AI automation? We&apos;d love to hear from you.
           </p>
         </div>
 

@@ -28,13 +28,13 @@ export const SuccessDisplay = ({
         </div>
       </div>
       <h3 className="text-4xl md:text-5xl font-outfit font-black text-foreground mb-6 tracking-tight">
-        You're all set!
+        You&apos;re all set!
       </h3>
       <p className="text-xl md:text-2xl text-muted-foreground max-w-lg mb-12 leading-relaxed font-medium">
         Thanks,{" "}
         <span className="text-foreground font-black">{formData.name}</span>!{" "}
         <br className="hidden sm:block" />
-        We've sent a calendar invite to{" "}
+        We&apos;ve sent a calendar invite to{" "}
         <span className="text-accent underline decoration-4 underline-offset-4">
           {formData.email}
         </span>{" "}

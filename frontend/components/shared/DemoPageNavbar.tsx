@@ -61,15 +61,11 @@ export const DemoPageNavbar = () => {
   const { goHome } = useDomainNavigation();
 
   const [isScrolled, setIsScrolled] = useState(false);
-  const [scrollProgress, setScrollProgress] = useState(0);
 
   useEffect(() => {
     const updateScroll = () => {
       const y = window.scrollY;
       setIsScrolled(y > 20);
-
-      const total = document.documentElement.scrollHeight - window.innerHeight;
-      setScrollProgress(total ? (y / total) * 100 : 0);
     };
 
     updateScroll();
@@ -89,7 +85,7 @@ export const DemoPageNavbar = () => {
         {/* Logo */}
         <button
           onClick={goHome}
-          className="relative w-[140px] h-[40px] cursor-pointer hover:opacity-80 transition-opacity"
+          className="relative w-35 h-10 cursor-pointer hover:opacity-80 transition-opacity"
         >
           <Image
             src="/AutomEdge-logo-light.png"

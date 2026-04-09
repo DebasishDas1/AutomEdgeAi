@@ -7,7 +7,6 @@ import {
   CardDescription,
   CardFooter,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -44,7 +43,7 @@ export const DemoFullSystem = ({ steps }: DemoFullSystemProp) => {
       {/* Workflow container */}
       <div className="relative w-full max-w-5xl">
         {/* map-style dashed line - DESKTOP CENTER */}
-        <div className="absolute left-[20px] md:left-1/2 top-0 h-full w-px md:w-1 -translate-x-1/2 border-l-4 border-dashed border-accent/30 hidden sm:block" />
+        <div className="absolute left-5 md:left-1/2 top-0 h-full w-px md:w-1 -translate-x-1/2 border-l-4 border-dashed border-accent/30 hidden sm:block" />
 
         <div className="space-y-12 md:space-y-24">
           {steps.map((step, index) => {
@@ -64,8 +63,8 @@ export const DemoFullSystem = ({ steps }: DemoFullSystemProp) => {
 
                 {/* horizontal trail line (Desktop only) */}
                 <div 
-                  className={`hidden md:block absolute top-[28px] h-[3px] border-t-2 border-dashed border-accent/30 -z-10 transition-all duration-700 group-hover:border-accent/60
-                    ${isLeft ? "right-1/2 w-[100px]" : "left-1/2 w-[100px]"}
+                  className={`hidden md:block absolute top-7 h-0.75 border-t-2 border-dashed border-accent/30 -z-10 transition-all duration-700 group-hover:border-accent/60
+                    ${isLeft ? "right-1/2 w-25" : "left-1/2 w-25"}
                   `} 
                 />
 
@@ -101,7 +100,7 @@ export const DemoFullSystem = ({ steps }: DemoFullSystemProp) => {
                       <CardContent className="pb-6">
                         <div className="bg-background/80 border border-border/50 rounded-2xl p-4 relative group-hover:bg-background transition-colors">
                           <p className="font-sans font-medium text-foreground/90 italic italic-none leading-relaxed">
-                            "{step.message}"
+                            &quot;{step.message}&quot;
                           </p>
                           {/* small bubble tail */}
                           <div className="absolute -bottom-2 left-6 w-4 h-4 bg-background border-r border-b border-border/50 rotate-45 transform" />
