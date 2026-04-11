@@ -3,8 +3,7 @@ import { Navbar } from "@/components/Navbar";
 import type { Metadata } from "next";
 import { HeroBlock } from "@/components/ui/hero-block-shadcnui";
 
-// Above the fold - Static
-// Navbar and ModernHero remain static for immediate LCP
+import { PROBLEMS, SOLUTIONS, IMPACTS, FAQS } from "./constants";
 
 // Below the fold - Dynamic
 const placeholder = () => <div className="min-h-75 bg-background" />;
@@ -62,34 +61,6 @@ export const metadata: Metadata = {
   },
 };
 
-const FAQS = [
-  {
-    question: "What industries does Automedge AI serve?",
-    answer:
-      "Automedge AI is specifically built for service-based businesses, primarily focusing on HVAC, Roofing, Plumbing, and other trade services that rely on rapid lead response.",
-  },
-  {
-    question: "How quickly can I get started with Automedge AI?",
-    answer:
-      "Most businesses can get their AI sales engine up and running within 24 to 48 hours. Our team handles the initial setup and model training for you.",
-  },
-  {
-    question: "What happens to leads that aren't ready to book immediately?",
-    answer:
-      "The AI automatically puts them into a nurturing sequence. It checks in via text or WhatsApp at strategic intervals to answer questions and keep your business top-of-mind.",
-  },
-  {
-    question: "Can I integrate Automedge AI with my existing CRM?",
-    answer:
-      "Yes, we support native integrations with major CRMs like ServiceTitan, Housecall Pro, and HubSpot, as well as thousands of others through Zapier.",
-  },
-  {
-    question: "What kind of analytics and reporting do I get?",
-    answer:
-      "You get a real-time dashboard showing exactly how many leads were captured, qualified, and booked, along with detailed conversation transcripts and conversion rate trends.",
-  },
-];
-
 export default function Homepage() {
   return (
     <main className="min-h-screen relative overflow-hidden">
@@ -98,11 +69,11 @@ export default function Homepage() {
       {/* <ModernHero /> */}
 
       <div className="space-y-32 pb-12">
-        <ProblemSection />
+        <ProblemSection problems={PROBLEMS} />
         <HowItWorks />
-        <SolutionSection />
+        <SolutionSection solutions={SOLUTIONS} />
         <DemoWorkflowSection />
-        <ImpactSection />
+        <ImpactSection impacts={IMPACTS} />
         <LogoCloud />
         <FAQSection faqs={FAQS} />
         <ContactSection />

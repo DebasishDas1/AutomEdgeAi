@@ -1,75 +1,48 @@
 "use client";
 
-import {
-  Timer,
-  ArrowUpCircle,
-  XCircle,
-  Users2,
-  Clock3,
-  TrendingUp,
-} from "lucide-react";
+type ImpactSectionProps = {
+  impacts: {
+    icon: React.ReactNode;
+    stat: string;
+    label: string;
+  }[];
+};
 
-const IMPACTS = [
-  {
-    icon: <Timer className="w-8 h-8 text-accent" />,
-    stat: "2–3x",
-    label: "Faster Response Time",
-  },
-  {
-    icon: <ArrowUpCircle className="w-8 h-8 text-accent" />,
-    stat: "30–50%",
-    label: "More Booked Appointments",
-  },
-  {
-    icon: <XCircle className="w-8 h-8 text-accent" />,
-    stat: "0",
-    label: "Zero Missed Leads",
-  },
-  {
-    icon: <Users2 className="w-8 h-8 text-accent" />,
-    stat: "40%",
-    label: "Reduced Staff Load",
-  },
-  {
-    icon: <Clock3 className="w-8 h-8 text-accent" />,
-    stat: "24/7",
-    label: "Availability",
-  },
-  {
-    icon: <TrendingUp className="w-8 h-8 text-accent" />,
-    stat: "85%",
-    label: "Higher Conversion Rate",
-  },
-];
-
-export function ImpactSection() {
+export function ImpactSection({ impacts }: ImpactSectionProps) {
   return (
     <section
       id="impact"
-      className="py-24 px-6 border-y border-border/10 scroll-mt-24"
+      className="py-20 md:py-28 px-4 md:px-8 border-y border-border/10 scroll-mt-24"
     >
       <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-20">
-          <h2 className="text-5xl md:text-7xl font-outfit font-extrabold tracking-tighter">
+        {/* Header */}
+        <div className="text-center mb-16 md:mb-20">
+          <h2 className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl font-outfit font-extrabold tracking-tight leading-tight">
             What This Means For Your Business
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-16 gap-x-8">
-          {IMPACTS.map((item, index) => (
+        {/* Grid */}
+        <div className="flex flex-wrap justify-center gap-y-12 md:gap-y-16 gap-x-10">
+          {impacts.map((item, index) => (
             <div
               key={index}
-              className="text-center group flex flex-col items-center"
+              className="w-full sm:w-[45%] lg:w-[30%] flex flex-col items-center text-center group"
             >
-              <div className="flex justify-center mb-8">
-                <div className="p-6 rounded-full border-2 border-accent/20 group-hover:bg-accent/5 transition-all duration-300 group-hover:scale-110 shadow-lg [&_svg]:w-10 [&_svg]:h-10">
+              {/* Icon */}
+              <div className="mb-6 md:mb-8">
+                <div className="p-4 md:p-6 rounded-full border-2 border-accent/20 shadow-md transition-all duration-300 group-hover:bg-accent/5 group-hover:scale-105">
                   {item.icon}
                 </div>
               </div>
-              <div className="text-6xl md:text-8xl font-outfit font-black mb-4 tracking-tighter">
+
+              {/* Stat */}
+              <div className="text-4xl sm:text-5xl md:text-7xl font-outfit font-black tracking-tighter mb-3 md:mb-4">
                 {item.stat}
               </div>
-              <div className="text-muted-foreground font-sans font-bold uppercase tracking-[0.2em] text-sm md:text-base">
+
+              {/* Label */}
+              <div className="text-xs sm:text-sm md:text-base text-muted-foreground font-bold uppercase tracking-[0.15em] md:tracking-[0.2em]">
                 {item.label}
               </div>
             </div>

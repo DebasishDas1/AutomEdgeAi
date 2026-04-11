@@ -960,3 +960,14 @@
     to   { opacity: 1; transform: translateY(0) scale(1); }
   }
 }
+
+/* -------------------------------------- */
+/* Sidebar collapse behavior (ADD HERE)   */
+/* -------------------------------------- */
+[data-collapsed=true] .sidebar-text {
+  display: none;
+}
+
+[data-collapsed=true] .sidebar-badge {
+  display: none;
+}
