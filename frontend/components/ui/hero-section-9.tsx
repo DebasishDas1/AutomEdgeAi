@@ -43,29 +43,29 @@ const HeroSection = ({
             <h1 className="text-5xl font-black tracking-tight text-foreground sm:text-6xl md:text-7xl font-outfit">
               {title}
             </h1>
-            <p className="max-w-xl text-lg text-muted-foreground md:text-xl font-medium leading-relaxed">
+            <p className="max-w-xl text-md text-muted-foreground md:text-xl font-medium leading-relaxed">
               {subtitle}
             </p>
-            <p className="max-w-xl text-lg text-primary md:text-xl font-medium leading-relaxed">
+            <p className="max-w-xl text-md text-primary md:text-xl font-medium leading-relaxed">
               30% more patients booked in first month
             </p>
 
-            <div className="flex flex-wrap gap-4">
+            <div className="flex gap-4 flex-row flex-nowrap">
               {actions.map((action, i) => (
                 <Button
                   key={i}
                   onClick={action.onClick}
                   variant={action.variant as any}
-                  className="rounded-2xl px-8 py-7 text-lg font-bold transition-all hover:-translate-y-1 hover:text-accent"
+                  className="rounded-2xl px-8 py-7 text-lg font-bold transition-all hover:-translate-y-1 hover:text-accent whitespace-nowrap"
                 >
                   {action.text}
                 </Button>
               ))}
             </div>
 
-            <div className="grid grid-cols-2 gap-8 pt-8 sm:grid-cols-3">
+            <div className="flex gap-8 pt-8 flex-nowrap">
               {stats.map((stat, i) => (
-                <div key={i} className="flex flex-col gap-2">
+                <div key={i} className="flex flex-col gap-2 whitespace-nowrap">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-primary/5 rounded-lg">
                       {stat.icon}
