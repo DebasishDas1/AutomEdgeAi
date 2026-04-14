@@ -19,18 +19,19 @@ export const CalendarHeader = ({
       initial={{ opacity: 0, y: 15 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      className="text-center mb-16 max-w-3xl mx-auto flex flex-col items-center"
+      className="text-center mb-10 md:mb-16 max-w-3xl mx-auto flex flex-col items-center px-4"
     >
       <div className="flex items-center justify-center gap-2 mb-4">
-        <CalendarIcon className="w-5 h-5 text-accent" />
-        <span className="label text-accent uppercase tracking-widest font-bold text-[10px] sm:text-xs">
+        <CalendarIcon className="w-4 h-4 md:w-5 md:h-5 text-accent" />
+        <span className="label text-accent uppercase tracking-widest font-bold text-[9px] md:text-xs">
           Book a Live Demo
         </span>
       </div>
 
-      <h2 className="text-4xl md:text-5xl font-outfit tracking-tight leading-tight mb-4 text-foreground">
+      <h2 className="text-3xl md:text-5xl font-outfit tracking-tight leading-tight mb-4 text-foreground">
         {title} <span className="text-accent">{highlight}</span>
       </h2>
+
 
       {description && (
         <p className="text-lg text-muted-foreground opacity-90 max-w-2xl mx-auto leading-relaxed">

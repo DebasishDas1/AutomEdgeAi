@@ -7,6 +7,7 @@ import { DemoPageHero } from "@/components/shared/DemoPageHero";
 import { DemoPageFooter } from "@/components/shared/DemoPageFooter";
 import { ChatbotWrapper } from "@/components/shared/ChatbotWrapper";
 import { CallAgent } from "@/components/shared/CallAgent";
+import { ScrollReveal } from "@/components/shared/ScrollReveal";
 
 const DemoFullSystem = dynamic(() =>
   import("@/components/shared/DemoFullSystem").then(
@@ -32,14 +33,35 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Live Pest Control Demo — AutomEdge",
     description:
-      "Pest leads are urgent. See AutomEdge respond, identify the pest, and book a treatment automatically. Try the live demo — real SMS in under 60 seconds.",
+      "Pest leads are urgent. See AutomEdge respond, identify the pest, and book a treatment automatically.",
     images: ["/pest_control.png"],
+    type: "website",
+    url: "https://automedgeai.com/demo-pest-control",
   },
   twitter: {
+    card: "summary_large_image",
     title: "Live Pest Control Demo — AutomEdge",
     description:
-      "Pest leads are urgent. See AutomEdge respond, identify the pest, and book a treatment automatically. Try the live demo — real SMS in under 60 seconds.",
+      "Pest leads are urgent. See AutomEdge respond, identify the pest, and book a treatment automatically.",
     images: ["/pest_control.png"],
+  },
+  alternates: {
+    canonical: "https://automedgeai.com/demo-pest-control",
+  },
+};
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  name: "Live Pest Control Demo — AutomEdge",
+  description: "Watch AI book pest control jobs automatically in real time.",
+  publisher: {
+    "@type": "Organization",
+    name: "AutomEdgeAi",
+    logo: {
+      "@type": "ImageObject",
+      url: "https://automedgeai.com/logo.png",
+    },
   },
 };
 
@@ -131,56 +153,83 @@ const navItems = [
 
 export default function PestControlPage() {
   return (
-    <main className="min-h-screen">
+    <main className="relative min-h-screen bg-background overflow-x-hidden">
+      {/* 🔹 Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
+      {/* 🔹 Premium Background Elements */}
+      <div className="absolute inset-0 -z-10 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] opacity-50" />
+        <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[600px] bg-accent/5 rounded-full blur-[140px] opacity-30" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] bg-size-[40px_40px] mask-[radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-[0.1]" />
+      </div>
+
       <DemoPageNavbar navItems={navItems} />
-      <CallAgent type={"pest_control"} />
 
-      <DemoPageHero
-        title="Pest Leads Are Urgent."
-        highlight="Your Response"
-        subTitle="Needs to Be Even Faster."
-        description="A homeowner finding roaches at 9pm books the first
-company that replies — not the best one. AutomEdge
-responds in under 60 seconds, identifies the pest,
-and books the treatment. See it live below."
-        tags={[
-          "Residential and commercial",
-          "Handles any pest type",
-          "Real SMS to your phone in 60 seconds",
-        ]}
-      />
+      <ScrollReveal direction="down" distance={20}>
+        <CallAgent type={"pest_control"} />
+      </ScrollReveal>
 
-      <DemoFullSystem steps={STEPS} />
+      <div className="space-y-24 md:space-y-36 pb-24 md:pb-32">
+        <ScrollReveal>
+          <DemoPageHero
+            title="Pest Leads Are Urgent."
+            highlight="Your Response"
+            subTitle="Needs to Be Even Faster."
+            description="A homeowner finding roaches at 9pm books the first company that replies — not the best one. AutomEdge responds in under 60 seconds, identifies the pest, and books the treatment. See it live below."
+            tags={[
+              "Residential and commercial",
+              "Handles any pest type",
+              "Real SMS to your phone in 60 seconds",
+            ]}
+          />
+        </ScrollReveal>
 
-      <RoiCalculator
-        defaultLeads={60}
-        minLeads={10}
-        maxLeads={300}
-        defaultTicketValue={280}
-        minTicketValue={100}
-        maxTicketValue={1500}
-        defaultCloseRate={30}
-        minCloseRate={5}
-        maxCloseRate={70}
-        customSubResult="Plus quarterly plan LTV multiplier"
-      />
+        <ScrollReveal>
+          <DemoFullSystem steps={STEPS} />
+        </ScrollReveal>
 
-      <FAQSection faqs={FAQS} />
+        <ScrollReveal>
+          <div id="roi">
+            <RoiCalculator
+              defaultLeads={60}
+              minLeads={10}
+              maxLeads={300}
+              defaultTicketValue={280}
+              minTicketValue={100}
+              maxTicketValue={1500}
+              defaultCloseRate={30}
+              minCloseRate={5}
+              maxCloseRate={70}
+              customSubResult="Plus quarterly plan LTV multiplier"
+            />
+          </div>
+        </ScrollReveal>
 
-      <DemoPageCalendar
-        title="Ready to respond to every pest lead in 60 seconds?"
-        highlight="you need 15 minutes. We build your custom pest automation live on the call."
-        description="We'll show you the conversation flow for your most common pests, how emergency routing works, and what the quarterly plan upsell sequence looks like."
-        type="pest_control"
-        tags={[
-          "Residential and commercial",
-          "Handles any pest type",
-          "Real SMS to your phone in 60 seconds",
-          "No commitment",
-          "See live build",
-          "14-day setup if you proceed",
-        ]}
-      />
+        <ScrollReveal>
+          <FAQSection faqs={FAQS} />
+        </ScrollReveal>
+
+        <ScrollReveal>
+          <DemoPageCalendar
+            title="Ready to respond to every pest lead in 60 seconds?"
+            highlight="You need 15 minutes."
+            description="We'll show you the conversation flow for your most common pests, how emergency routing works, and what the quarterly plan upsell sequence looks like."
+            type="pest_control"
+            tags={[
+              "Residential and commercial",
+              "Handles any pest type",
+              "Real SMS to your phone in 60 seconds",
+              "No commitment",
+              "See live build",
+              "14-day setup if you proceed",
+            ]}
+          />
+        </ScrollReveal>
+      </div>
 
       <DemoPageFooter />
 

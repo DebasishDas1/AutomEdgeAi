@@ -38,7 +38,7 @@ export function SolutionSection({ solutions }: SolutionSectionProps) {
         {/* Background accents (lighter impact) */}
         <div className="relative">
           <div className="absolute inset-0 -z-10 opacity-[0.06] pointer-events-none">
-            <Sparkles className="absolute top-0 right-0 w-32 md:w-48 h-32 md:h-48 animate-pulse" />
+            <Sparkles className="absolute top-0 right-0 w-32 md:w-48 h-32 md:h-48" />
             <Zap className="absolute bottom-0 left-0 w-24 md:w-32 h-24 md:h-32 rotate-45" />
           </div>
 

@@ -117,7 +117,7 @@ export const DemoPageCalendar = ({
   return (
     <section
       id="calendar"
-      className="relative py-28 px-6 max-w-6xl mx-auto scroll-mt-24 w-full flex flex-col items-center overflow-hidden"
+      className="relative py-16 md:py-28 px-4 sm:px-6 max-w-6xl mx-auto scroll-mt-24 w-full flex flex-col items-center overflow-hidden"
     >
       <CalendarHeader
         title={title}
@@ -133,7 +133,7 @@ export const DemoPageCalendar = ({
         transition={{ duration: 0.6 }}
         className="w-full"
       >
-        <Card className="w-full max-w-5xl mx-auto border-2 border-border/50 shadow-3xl bg-card/60 backdrop-blur-3xl overflow-hidden relative rounded-[3rem]">
+        <Card className="w-full max-w-5xl mx-auto border-2 border-border/50 shadow-2xl md:shadow-3xl bg-card/60 backdrop-blur-3xl overflow-hidden relative rounded-3xl md:rounded-[3rem]">
           <AnimatePresence mode="wait">
             {bookingStep === "calendar" ? (
               <motion.div
@@ -141,16 +141,16 @@ export const DemoPageCalendar = ({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="p-8 md:p-14 lg:p-16"
+                className="p-4 sm:p-8 md:p-14 lg:p-16"
               >
-                <div className="flex flex-col md:flex-row gap-12 lg:gap-20">
+                <div className="flex flex-col md:flex-row gap-8 md:gap-12 lg:gap-20">
                   {/* Left: Calendar Picker */}
-                  <div className="flex-1">
-                    <h3 className="text-xl font-outfit font-black tracking-tight mb-8 flex items-center gap-3 text-foreground uppercase sm:text-sm">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg md:text-xl font-outfit font-black tracking-tight mb-5 md:mb-8 flex items-center gap-3 text-foreground uppercase sm:text-xs">
                       <CalendarIcon className="w-5 h-5 text-accent" />
                       Select Date
                     </h3>
-                    <div className="bg-background/50 rounded-4xl p-8 border-2 border-border/40 shadow-xl ring-8 ring-accent/5">
+                    <div className="bg-background/50 rounded-4xl md:rounded-4xl p-2 sm:p-6 md:p-8 border-2 border-border/40 shadow-lg ring-4 md:ring-8 ring-accent/5">
                       <Calendar
                         mode="single"
                         selected={selectedDate}
@@ -162,28 +162,28 @@ export const DemoPageCalendar = ({
                           { before: new Date() },
                           { dayOfWeek: [0, 6] },
                         ]}
-                        className="w-full pointer-events-auto"
+                        className="w-full"
                         classNames={{
                           months: "w-full",
-                          month: "w-full space-y-6",
+                          month: "w-full space-y-4 md:space-y-6",
                           caption:
                             "flex justify-center pt-2 relative items-center mb-6",
                           caption_label:
-                            "text-lg font-black font-outfit text-foreground tracking-tight",
+                            "text-base md:text-lg font-black font-outfit text-foreground tracking-tight",
                           nav: "space-x-1 flex items-center",
                           nav_button:
-                            "h-10 w-10 bg-background border-2 border-border/80 rounded-xl flex items-center justify-center hover:bg-accent/10 transition-colors shadow-sm",
+                            "h-9 w-9 md:h-10 md:h-10 bg-background border-2 border-border/80 rounded-lg md:rounded-xl flex items-center justify-center hover:bg-accent/10 transition-colors shadow-sm",
                           nav_button_previous: "absolute left-1",
                           nav_button_next: "absolute right-1",
                           table: "w-full border-collapse",
                           head_row: "flex w-full justify-between mb-4",
                           head_cell:
-                            "text-muted-foreground/50 rounded-md w-10 font-black text-[0.65rem] uppercase tracking-widest",
+                            "text-muted-foreground/50 rounded-md w-9 md:w-10 font-black text-[0.6rem] md:text-[0.65rem] uppercase tracking-widest",
                           row: "flex w-full mt-2 justify-between",
-                          cell: "text-center text-sm p-0 w-10 h-10 flex items-center justify-center relative",
-                          day: "h-10 w-10 p-0 font-bold aria-selected:opacity-100 hover:bg-accent/10 rounded-xl transition-all duration-300",
+                          cell: "text-center text-sm p-0 w-9 md:w-10 h-9 md:h-10 flex items-center justify-center relative",
+                          day: "h-9 w-9 md:h-10 md:h-10 p-0 font-bold aria-selected:opacity-100 hover:bg-accent/10 rounded-lg md:rounded-xl transition-all duration-300",
                           day_selected:
-                            "bg-accent !text-white hover:bg-accent hover:text-white focus:bg-accent focus:text-white rounded-xl shadow-[0_10px_20px_-5px_rgba(29,158,117,0.4)] scale-110",
+                            "bg-accent !text-white hover:bg-accent hover:text-white focus:bg-accent focus:text-white rounded-lg md:rounded-xl shadow-[0_10px_20px_-5px_rgba(29,158,117,0.4)] md:scale-110",
                           day_today:
                             "border-2 border-accent/40 text-accent font-black",
                           day_outside: "text-muted-foreground opacity-20",
@@ -195,13 +195,15 @@ export const DemoPageCalendar = ({
                   </div>
 
                   {/* Right: Time Slots */}
-                  <TimeSlotPicker
-                    selectedDate={selectedDate}
-                    selectedSlot={selectedSlot}
-                    onSelectSlot={setSelectedSlot}
-                    slots={slots}
-                    onContinue={handleBooking}
-                  />
+                  <div className="flex-1 min-w-0">
+                    <TimeSlotPicker
+                      selectedDate={selectedDate}
+                      selectedSlot={selectedSlot}
+                      onSelectSlot={setSelectedSlot}
+                      slots={slots}
+                      onContinue={handleBooking}
+                    />
+                  </div>
                 </div>
               </motion.div>
             ) : bookingStep === "details" ? (

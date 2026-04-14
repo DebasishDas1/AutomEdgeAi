@@ -15,7 +15,7 @@ import { PositioningSection } from "@/components/PositioningSection";
 import { DemoPageNavbar } from "@/components/shared/DemoPageNavbar";
 import { DirectContactSection } from "@/components/DirectContactSection";
 import { YoutubeEmbed } from "@/components/shared/YoutubeEmbed";
-
+import { ScrollReveal } from "@/components/shared/ScrollReveal";
 import { ClinicHero } from "@/components/ClinicHero";
 
 // 🔹 dynamic imports
@@ -69,12 +69,33 @@ export const metadata: Metadata = {
     description:
       "Watch AutomEdgeAi respond to a clinic lead, qualify the issue, and book the appointment automatically.",
     images: ["/clinic.png"],
+    type: "website",
+    url: "https://automedgeai.com/clinic",
   },
   twitter: {
+    card: "summary_large_image",
     title: "Live Clinic Demo — AutomEdgeAi",
     description:
       "Watch AutomEdgeAi respond to a clinic lead, qualify the issue, and book the appointment automatically.",
     images: ["/clinic.png"],
+  },
+  alternates: {
+    canonical: "https://automedgeai.com/clinic",
+  },
+};
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  name: "Live Clinic Demo — AutomEdgeAi",
+  description: "Watch AI book clinic appointments automatically in real time.",
+  publisher: {
+    "@type": "Organization",
+    name: "AutomEdgeAi",
+    logo: {
+      "@type": "ImageObject",
+      url: "https://automedgeai.com/logo.png",
+    },
   },
 };
 
@@ -90,41 +111,93 @@ const navItems = [
 
 export default function ClinicPage() {
   return (
-    <main className="min-h-screen w-full">
+    <main className="relative min-h-screen w-full bg-background overflow-x-hidden">
+      {/* 🔹 Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
+      {/* 🔹 Premium Background Elements */}
+      <div className="absolute inset-0 -z-10 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] opacity-50" />
+        <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[600px] bg-accent/5 rounded-full blur-[140px] opacity-30" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] bg-size-[40px_40px] mask-[radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-[0.15]" />
+      </div>
+
       <DemoPageNavbar navItems={navItems} iconLink="/clinic" />
-      <ClinicHero />
 
-      <div className="space-y-20 md:space-y-28 pb-16 md:pb-24">
-        <ProblemSection problems={PROBLEMS} />
-        <SolutionSection solutions={SOLUTIONS} />
-        <DemoFullSystem steps={STEPS} />
-        <ServicesSection services={SERVICES} />
-        <ImpactSection impacts={IMPACTS} />
-        <TestimonialSection testimonials={TESTIMONIALS} />
-        <PositioningSection />
+      <ScrollReveal direction="down" distance={30}>
+        <ClinicHero />
+      </ScrollReveal>
 
-        <section id="youtube-demo" className="text-center space-y-8 py-16">
-          <h2 className="text-3xl md:text-5xl font-black">
-            See It Book Appointments in Real Time
-          </h2>
-          <p className="text-muted-foreground max-w-xl mx-auto">
-            From incoming lead → AI response → confirmed booking. No human
-            needed.
-          </p>
+      <div className="space-y-24 md:space-y-36 pb-24 md:pb-32">
+        <ScrollReveal>
+          <ProblemSection problems={PROBLEMS} />
+        </ScrollReveal>
 
-          <YoutubeEmbed videoId="bDDlgM686Ds" />
-        </section>
+        <ScrollReveal delay={0.1}>
+          <SolutionSection solutions={SOLUTIONS} />
+        </ScrollReveal>
 
-        <DemoPageCalendar
-          title="Ready to see it in action?"
-          highlight="Book a 15-minute demo"
-          description="15 minutes. We show you exactly what this looks like built for your business — your branding, your calendar, your CRM. No pitch. No pressure."
-          type="clinic"
-        />
-        <DirectContactSection
-          whatsappNumber={"9073896612"}
-          email={"team.automedgeai@gmail.com"}
-        />
+        <ScrollReveal>
+          <DemoFullSystem steps={STEPS} />
+        </ScrollReveal>
+
+        <ScrollReveal>
+          <ServicesSection services={SERVICES} />
+        </ScrollReveal>
+
+        <ScrollReveal>
+          <ImpactSection impacts={IMPACTS} />
+        </ScrollReveal>
+
+        <ScrollReveal>
+          <TestimonialSection testimonials={TESTIMONIALS} />
+        </ScrollReveal>
+
+        <ScrollReveal>
+          <PositioningSection />
+        </ScrollReveal>
+
+        <ScrollReveal>
+          <section
+            id="youtube-demo"
+            className="text-center space-y-10 py-20 px-4"
+          >
+            <div className="space-y-4 max-w-3xl mx-auto">
+              <h2 className="text-4xl md:text-6xl font-outfit font-black tracking-tight leading-none">
+                See It Book Appointments <br className="hidden md:block" />
+                <span className="text-accent">in Real Time</span>
+              </h2>
+              <p className="text-lg md:text-xl text-muted-foreground font-medium">
+                From incoming lead → AI response → confirmed booking.{" "}
+                <br className="hidden md:block" />
+                No human needed. Available 24/7.
+              </p>
+            </div>
+
+            <div className="max-w-5xl mx-auto rounded-3xl overflow-hidden shadow-2xl border border-border/50 bg-card/50 backdrop-blur-sm p-2">
+              <YoutubeEmbed videoId="bDDlgM686Ds" />
+            </div>
+          </section>
+        </ScrollReveal>
+
+        <ScrollReveal>
+          <DemoPageCalendar
+            title="Ready to see it in action?"
+            highlight="Book a 15-minute demo"
+            description="15 minutes. We show you exactly what this looks like built for your business — your branding, your calendar, your CRM. No pitch. No pressure."
+            type="clinic"
+          />
+        </ScrollReveal>
+
+        <ScrollReveal>
+          <DirectContactSection
+            whatsappNumber={"9073896612"}
+            email={"team.automedgeai@gmail.com"}
+          />
+        </ScrollReveal>
       </div>
     </main>
   );

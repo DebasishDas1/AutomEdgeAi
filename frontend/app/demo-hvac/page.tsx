@@ -7,6 +7,7 @@ import { DemoPageHero } from "@/components/shared/DemoPageHero";
 import { DemoPageFooter } from "@/components/shared/DemoPageFooter";
 import { ChatbotWrapper } from "@/components/shared/ChatbotWrapper";
 import { CallAgent } from "@/components/shared/CallAgent";
+import { ScrollReveal } from "@/components/shared/ScrollReveal";
 
 const DemoPageCalendar = dynamic(() =>
   import("@/components/shared/DemoPageCalendar").then(
@@ -32,14 +33,35 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Live HVAC Demo — AutomEdge",
     description:
-      "Watch AutomEdge respond to an HVAC lead, qualify the issue, and book the job automatically. Enter your number — get a real text in under 60 seconds.",
+      "Watch AutomEdge respond to an HVAC lead, qualify the issue, and book the job automatically.",
     images: ["/hvac.png"],
+    type: "website",
+    url: "https://automedgeai.com/demo-hvac",
   },
   twitter: {
+    card: "summary_large_image",
     title: "Live HVAC Demo — AutomEdge",
     description:
-      "Watch AutomEdge respond to an HVAC lead, qualify the issue, and book the job automatically. Enter your number — get a real text in under 60 seconds.",
+      "Watch AutomEdge respond to an HVAC lead, qualify the issue, and book the job automatically.",
     images: ["/hvac.png"],
+  },
+  alternates: {
+    canonical: "https://automedgeai.com/demo-hvac",
+  },
+};
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  name: "Live HVAC Demo — AutomEdge",
+  description: "Watch AI book HVAC jobs automatically in real time.",
+  publisher: {
+    "@type": "Organization",
+    name: "AutomEdgeAi",
+    logo: {
+      "@type": "ImageObject",
+      url: "https://automedgeai.com/logo.png",
+    },
   },
 };
 
@@ -122,45 +144,75 @@ const navItems = [
 
 export default function HvacLandingPage() {
   return (
-    <main className="min-h-screen">
+    <main className="relative min-h-screen bg-background overflow-x-hidden">
+      {/* 🔹 Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
+      {/* 🔹 Premium Background Elements */}
+      <div className="absolute inset-0 -z-10 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] opacity-50" />
+        <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[600px] bg-accent/5 rounded-full blur-[140px] opacity-30" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] bg-size-[40px_40px] mask-[radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-[0.1]" />
+      </div>
+
       <DemoPageNavbar navItems={navItems} />
-      <CallAgent type={"hvac"} />
 
-      <DemoPageHero
-        title="See How HVAC Companies Book"
-        highlight="30% More Jobs"
-        subTitle="Without Hiring Anyone."
-        description="Enter your number in the demo below. In under 60 seconds you'll get a real text — the exact experience your customers get the moment they contact your business."
-        tags={[
-          "No app needed",
-          "Real SMS to your phone",
-          "90 seconds to see it",
-        ]}
-      />
+      <ScrollReveal direction="down" distance={20}>
+        <CallAgent type={"hvac"} />
+      </ScrollReveal>
 
-      <DemoFullSystem steps={STEPS} />
+      <div className="space-y-24 md:space-y-36 pb-24 md:pb-32">
+        <ScrollReveal>
+          <DemoPageHero
+            title="See How HVAC Companies Book"
+            highlight="30% More Jobs"
+            subTitle="Without Hiring Anyone."
+            description="Enter your number in the demo below. In under 60 seconds you'll get a real text — the exact experience your customers get the moment they contact your business."
+            tags={[
+              "No app needed",
+              "Real SMS to your phone",
+              "90 seconds to see it",
+            ]}
+          />
+        </ScrollReveal>
 
-      <RoiCalculator
-        defaultLeads={60}
-        minLeads={10}
-        maxLeads={300}
-        defaultTicketValue={280}
-        minTicketValue={100}
-        maxTicketValue={1500}
-        defaultCloseRate={30}
-        minCloseRate={5}
-        maxCloseRate={70}
-        customSubResult="Plus quarterly plan LTV multiplier"
-      />
+        <ScrollReveal>
+          <DemoFullSystem steps={STEPS} />
+        </ScrollReveal>
 
-      <FAQSection faqs={FAQS} />
+        <ScrollReveal>
+          <div id="roi">
+            <RoiCalculator
+              defaultLeads={60}
+              minLeads={10}
+              maxLeads={300}
+              defaultTicketValue={280}
+              minTicketValue={100}
+              maxTicketValue={1500}
+              defaultCloseRate={30}
+              minCloseRate={5}
+              maxCloseRate={70}
+              customSubResult="Plus quarterly plan LTV multiplier"
+            />
+          </div>
+        </ScrollReveal>
 
-      <DemoPageCalendar
-        title="Like what you saw? Let's build this for"
-        highlight="your HVAC business."
-        description="15 minutes. We show you exactly what this looks like built for your business — your branding, your calendar, your CRM. No pitch. No pressure."
-        type="hvac"
-      />
+        <ScrollReveal>
+          <FAQSection faqs={FAQS} />
+        </ScrollReveal>
+
+        <ScrollReveal>
+          <DemoPageCalendar
+            title="Like what you saw? Let's build this for"
+            highlight="your HVAC business."
+            description="15 minutes. We show you exactly what this looks like built for your business — your branding, your calendar, your CRM. No pitch. No pressure."
+            type="hvac"
+          />
+        </ScrollReveal>
+      </div>
 
       <DemoPageFooter />
 

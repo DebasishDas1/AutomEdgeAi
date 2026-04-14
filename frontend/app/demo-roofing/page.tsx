@@ -7,6 +7,7 @@ import { DemoPageHero } from "@/components/shared/DemoPageHero";
 import { DemoPageFooter } from "@/components/shared/DemoPageFooter";
 import { ChatbotWrapper } from "@/components/shared/ChatbotWrapper";
 import { CallAgent } from "@/components/shared/CallAgent";
+import { ScrollReveal } from "@/components/shared/ScrollReveal";
 
 const DemoFullSystem = dynamic(() =>
   import("@/components/shared/DemoFullSystem").then(
@@ -32,14 +33,35 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Live Roofing Demo — AutomEdge",
     description:
-      "Roof leaks don't wait for business hours. See how AutomEdge responds instantly, assesses the damage, and books a tarp or repair appointment automatically. Try the live demo — real SMS in under 60 seconds.",
+      "Roof leaks don't wait for business hours. See how AutomEdge responds instantly, assesses the damage, and books a tarp or repair appointment automatically.",
     images: ["/roofing.png"],
+    type: "website",
+    url: "https://automedgeai.com/demo-roofing",
   },
   twitter: {
+    card: "summary_large_image",
     title: "Live Roofing Demo — AutomEdge",
     description:
-      "Roof leaks don't wait for business hours. See how AutomEdge responds instantly, assesses the damage, and books a tarp or repair appointment automatically. Try the live demo — real SMS in under 60 seconds.",
+      "Roof leaks don't wait for business hours. See how AutomEdge responds instantly, assesses the damage, and books a tarp or repair appointment automatically.",
     images: ["/roofing.png"],
+  },
+  alternates: {
+    canonical: "https://automedgeai.com/demo-roofing",
+  },
+};
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  name: "Live Roofing Demo — AutomEdge",
+  description: "Watch AI book roofing jobs automatically in real time.",
+  publisher: {
+    "@type": "Organization",
+    name: "AutomEdgeAi",
+    logo: {
+      "@type": "ImageObject",
+      url: "https://automedgeai.com/logo.png",
+    },
   },
 };
 
@@ -98,7 +120,7 @@ const STEPS = [
     description:
       "For emergency tarp requests, the system automatically offers the next available same-day or next-morning slot.",
     message:
-      "We can get a crew out there today between 2–4pm to tarp the damaged area. Takes 30 seconds to confirm: [link]",
+      "We can be there today at 4pm or tomorrow at 9am. Here's your slot: [link]. Takes 30 seconds to confirm.",
     smallWin:
       "Tarps prevent secondary water damage — and every day you wait is another day the homeowner is talking to your competitors.",
   },
@@ -147,55 +169,82 @@ const navItems = [
 
 export default function RoofingPage() {
   return (
-    <main className="min-h-screen">
+    <main className="relative min-h-screen bg-background overflow-x-hidden">
+      {/* 🔹 Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
+      {/* 🔹 Premium Background Elements */}
+      <div className="absolute inset-0 -z-10 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] opacity-50" />
+        <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[600px] bg-accent/5 rounded-full blur-[140px] opacity-30" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] bg-size-[40px_40px] mask-[radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-[0.1]" />
+      </div>
+
       <DemoPageNavbar navItems={navItems} />
-      <CallAgent type={"roofing"} />
 
-      <DemoPageHero
-        title="Storm Season Leads Have a"
-        highlight="48-Hour"
-        subTitle="Window Are You Winning Them?"
-        description="After every storm, every homeowner in your area files
-          a request at the same time. The roofing company that
-          responds in 60 seconds gets the inspection — and the job.
-          See AutomEdge do it below."
-        tags={[
-          "Handles storm, insurance, and retail jobs separately",
-          "Qualifies insurance vs cash automatically",
-          "Books inspections into your calendar 24/7",
-        ]}
-      />
+      <ScrollReveal direction="down" distance={20}>
+        <CallAgent type={"roofing"} />
+      </ScrollReveal>
 
-      <DemoFullSystem steps={STEPS} />
+      <div className="space-y-24 md:space-y-36 pb-24 md:pb-32">
+        <ScrollReveal>
+          <DemoPageHero
+            title="Storm Season Leads Have a"
+            highlight="48-Hour"
+            subTitle="Window Are You Winning Them?"
+            description="After every storm, every homeowner in your area files a request at the same time. The roofing company that responds in 60 seconds gets the inspection — and the job. See AutomEdge do it below."
+            tags={[
+              "Handles storm, insurance, and retail jobs separately",
+              "Qualifies insurance vs cash automatically",
+              "Books inspections into your calendar 24/7",
+            ]}
+          />
+        </ScrollReveal>
 
-      <RoiCalculator
-        defaultLeads={30}
-        minLeads={5}
-        maxLeads={150}
-        defaultTicketValue={9500}
-        minTicketValue={1000}
-        maxTicketValue={50000}
-        defaultCloseRate={22}
-        minCloseRate={5}
-        maxCloseRate={60}
-      />
+        <ScrollReveal>
+          <DemoFullSystem steps={STEPS} />
+        </ScrollReveal>
 
-      <FAQSection faqs={FAQS} />
+        <ScrollReveal>
+          <div id="roi">
+            <RoiCalculator
+              defaultLeads={30}
+              minLeads={5}
+              maxLeads={150}
+              defaultTicketValue={9500}
+              minTicketValue={1000}
+              maxTicketValue={50000}
+              defaultCloseRate={22}
+              minCloseRate={5}
+              maxCloseRate={60}
+            />
+          </div>
+        </ScrollReveal>
 
-      <DemoPageCalendar
-        title="Ready to respond to every storm lead in 60 seconds?"
-        highlight="you need 15 minutes. We build your custom roofing automation live on the call."
-        description="We'll show you the conversation flow for your most common roofing issues, how insurance routing works, and what the post-job follow-up sequence looks like."
-        type="roofing"
-        tags={[
-          "Handles storm, insurance, and retail jobs separately",
-          "Qualifies insurance vs cash automatically",
-          "Real SMS to your phone in 60 seconds",
-          "No commitment",
-          "See live build",
-          "14-day setup if you proceed",
-        ]}
-      />
+        <ScrollReveal>
+          <FAQSection faqs={FAQS} />
+        </ScrollReveal>
+
+        <ScrollReveal>
+          <DemoPageCalendar
+            title="Ready to respond to every storm lead in 60 seconds?"
+            highlight="You need 15 minutes."
+            description="We'll show you the conversation flow for your most common roofing issues, how insurance routing works, and what the post-job follow-up sequence looks like."
+            type="roofing"
+            tags={[
+              "Handles storm, insurance, and retail jobs separately",
+              "Qualifies insurance vs cash automatically",
+              "Real SMS to your phone in 60 seconds",
+              "No commitment",
+              "See live build",
+              "14-day setup if you proceed",
+            ]}
+          />
+        </ScrollReveal>
+      </div>
 
       <DemoPageFooter />
 

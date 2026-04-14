@@ -7,6 +7,7 @@ import { DemoPageHero } from "@/components/shared/DemoPageHero";
 import { DemoPageFooter } from "@/components/shared/DemoPageFooter";
 import { ChatbotWrapper } from "@/components/shared/ChatbotWrapper";
 import { CallAgent } from "@/components/shared/CallAgent";
+import { ScrollReveal } from "@/components/shared/ScrollReveal";
 
 const DemoFullSystem = dynamic(() =>
   import("@/components/shared/DemoFullSystem").then(
@@ -33,14 +34,35 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Live Plumbing Demo — AutomEdge",
     description:
-      "Plumbing emergencies wait for no one. See how AutomEdge responds instantly, diagnoses the issue, and books the job automatically. Try the live demo — real SMS in under 60 seconds.",
+      "Plumbing emergencies wait for no one. See how AutomEdge responds instantly, diagnoses the issue, and books the job automatically.",
     images: ["/plumbing.png"],
+    type: "website",
+    url: "https://automedgeai.com/demo-plumbing",
   },
   twitter: {
+    card: "summary_large_image",
     title: "Live Plumbing Demo — AutomEdge",
     description:
-      "Plumbing emergencies wait for no one. See how AutomEdge responds instantly, diagnoses the issue, and books the job automatically. Try the live demo — real SMS in under 60 seconds.",
+      "Plumbing emergencies wait for no one. See how AutomEdge responds instantly, diagnoses the issue, and books the job automatically.",
     images: ["/plumbing.png"],
+  },
+  alternates: {
+    canonical: "https://automedgeai.com/demo-plumbing",
+  },
+};
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  name: "Live Plumbing Demo — AutomEdge",
+  description: "Watch AI book plumbing jobs automatically in real time.",
+  publisher: {
+    "@type": "Organization",
+    name: "AutomEdgeAi",
+    logo: {
+      "@type": "ImageObject",
+      url: "https://automedgeai.com/logo.png",
+    },
   },
 };
 
@@ -147,45 +169,75 @@ const navItems = [
 
 export default function PlumbingPage() {
   return (
-    <main className="min-h-screen">
+    <main className="relative min-h-screen bg-background overflow-x-hidden">
+      {/* 🔹 Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
+      {/* 🔹 Premium Background Elements */}
+      <div className="absolute inset-0 -z-10 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] opacity-50" />
+        <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[600px] bg-accent/5 rounded-full blur-[140px] opacity-30" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] bg-size-[40px_40px] mask-[radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-[0.1]" />
+      </div>
+
       <DemoPageNavbar navItems={navItems} />
-      <CallAgent type={"plumbing"} />
 
-      <DemoPageHero
-        title="A Burst Pipe at 11pm"
-        highlight="Won't Wait."
-        subTitle="Neither Should Your Response."
-        description="A burst pipe or backed-up toilet at 10pm? The homeowner texts the first company that replies — not the best one. AutomEdge responds in under 60 seconds, diagnoses the issue, and books the job. See it live below."
-        tags={[
-          "24/7 instant response",
-          "Handles any plumbing emergency",
-          "Real SMS to your phone in 60 seconds",
-        ]}
-      />
+      <ScrollReveal direction="down" distance={20}>
+        <CallAgent type={"plumbing"} />
+      </ScrollReveal>
 
-      <DemoFullSystem steps={STEPS} />
+      <div className="space-y-24 md:space-y-36 pb-24 md:pb-32">
+        <ScrollReveal>
+          <DemoPageHero
+            title="A Burst Pipe at 11pm"
+            highlight="Won't Wait."
+            subTitle="Neither Should Your Response."
+            description="A burst pipe or backed-up toilet at 10pm? The homeowner texts the first company that replies — not the best one. AutomEdge responds in under 60 seconds, diagnoses the issue, and books the job. See it live below."
+            tags={[
+              "24/7 instant response",
+              "Handles any plumbing emergency",
+              "Real SMS to your phone in 60 seconds",
+            ]}
+          />
+        </ScrollReveal>
 
-      <RoiCalculator
-        defaultLeads={50}
-        minLeads={10}
-        maxLeads={250}
-        defaultTicketValue={650}
-        minTicketValue={150}
-        maxTicketValue={5000}
-        defaultCloseRate={35}
-        minCloseRate={5}
-        maxCloseRate={70}
-      />
+        <ScrollReveal>
+          <DemoFullSystem steps={STEPS} />
+        </ScrollReveal>
 
-      <FAQSection faqs={FAQS} />
+        <ScrollReveal>
+          <div id="roi">
+            <RoiCalculator
+              defaultLeads={50}
+              minLeads={10}
+              maxLeads={250}
+              defaultTicketValue={650}
+              minTicketValue={150}
+              maxTicketValue={5000}
+              defaultCloseRate={35}
+              minCloseRate={5}
+              maxCloseRate={70}
+            />
+          </div>
+        </ScrollReveal>
 
-      <DemoPageCalendar
-        title="Stop losing emergency calls to voicemail."
-        highlight="We'll show you how it works live."
-        description="We'll show you the conversation flow for your most common plumbing issues, how emergency routing works, and what the post-job follow-up sequence looks like."
-        type="plumbing"
-        tags={["No commitment", "Live custom walkthrough", "14-day setup"]}
-      />
+        <ScrollReveal>
+          <FAQSection faqs={FAQS} />
+        </ScrollReveal>
+
+        <ScrollReveal>
+          <DemoPageCalendar
+            title="Stop losing emergency calls to voicemail."
+            highlight="We'll show you how it works live."
+            description="We'll show you the conversation flow for your most common plumbing issues, how emergency routing works, and what the post-job follow-up sequence looks like."
+            type="plumbing"
+            tags={["No commitment", "Live custom walkthrough", "14-day setup"]}
+          />
+        </ScrollReveal>
+      </div>
 
       <DemoPageFooter />
 
